@@ -15,17 +15,22 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
-  const { primaryWallet } = useDynamicContext();
+  const { primaryWallet, sdkHasLoaded } = useDynamicContext();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Redirect to home if not connected
+  // Redirect to home if not connected (wait for SDK to load first)
   useEffect(() => {
-    if (!primaryWallet) {
+    if (sdkHasLoaded && !primaryWallet) {
       router.push("/");
     }
-  }, [primaryWallet, router]);
+  }, [primaryWallet, sdkHasLoaded, router]);
+
+  // Wait for SDK to initialize before rendering
+  if (!sdkHasLoaded) {
+    return null;
+  }
 
   if (!primaryWallet) {
     return null;

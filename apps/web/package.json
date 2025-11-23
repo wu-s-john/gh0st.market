@@ -12,6 +12,7 @@
   "dependencies": {
     "@dynamic-labs/ethereum": "^4.47.0",
     "@dynamic-labs/sdk-react-core": "^4.47.0",
+    "@uiw/react-json-view": "2.0.0-alpha.39",
     "next": "16.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",

@@ -3,8 +3,10 @@
 // Types matching the contract
 export interface JobSpec {
   id: string;
-  targetDomain: string;
-  instructions: string;
+  mainDomain: string;
+  notarizeUrl: string;
+  description: string;
+  promptInstructions: string;
   creator: string;
   createdAt: number;
   active: boolean;
@@ -17,7 +19,8 @@ interface JobSpecsTableProps {
   emptyMessage?: string;
 }
 
-function truncateText(text: string, maxLength: number = 50): string {
+function truncateText(text: string | undefined, maxLength: number = 50): string {
+  if (!text) return "";
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}...`;
 }
@@ -53,7 +56,7 @@ export function JobSpecsTable({ specs, onRowClick, emptyMessage = "No job specs 
               Domain
             </th>
             <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">
-              Instructions
+              Description
             </th>
             <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
               Jobs
@@ -76,12 +79,12 @@ export function JobSpecsTable({ specs, onRowClick, emptyMessage = "No job specs 
             >
               <td className="py-3 px-4">
                 <span className="text-sm font-medium text-[var(--text-primary)]">
-                  {spec.targetDomain}
+                  {spec.mainDomain}
                 </span>
               </td>
               <td className="py-3 px-4 hidden md:table-cell">
                 <span className="text-sm text-[var(--text-secondary)]">
-                  {truncateText(spec.instructions)}
+                  {truncateText(spec.description)}
                 </span>
               </td>
               <td className="py-3 px-4">

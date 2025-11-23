@@ -42,8 +42,10 @@ const mockJobs: Job[] = [
 const mockSpecs: JobSpec[] = [
   {
     id: "1",
-    targetDomain: "crunchbase.com",
-    instructions: "Fetch organization profiles including funding history, employee count, and company description from the organization page.",
+    mainDomain: "crunchbase.com",
+    notarizeUrl: "https://crunchbase.com/organization/{{orgSlug}}",
+    description: "Fetch Crunchbase organization profiles with funding and employee data",
+    promptInstructions: "Navigate to the organization page. Extract the company name from the header. Find the funding total in the Financials section. Get employee count from the About section.",
     creator: "0x7f3a8b2c9d4e5f6a",
     createdAt: Date.now() - 1000 * 60 * 60 * 24 * 7,
     active: true,
@@ -51,8 +53,10 @@ const mockSpecs: JobSpec[] = [
   },
   {
     id: "2",
-    targetDomain: "linkedin.com",
-    instructions: "Get company information including employee count, headquarters, and recent posts from the company page.",
+    mainDomain: "linkedin.com",
+    notarizeUrl: "https://linkedin.com/company/{{companySlug}}",
+    description: "Get LinkedIn company profiles with employee count and headquarters",
+    promptInstructions: "Navigate to the company page. Extract employee count, headquarters location, industry, and recent posts from the company profile.",
     creator: "0x7f3a8b2c9d4e5f6a",
     createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
     active: true,
@@ -60,8 +64,10 @@ const mockSpecs: JobSpec[] = [
   },
   {
     id: "3",
-    targetDomain: "salesforce.com",
-    instructions: "Extract dashboard data from the specified Salesforce view.",
+    mainDomain: "salesforce.com",
+    notarizeUrl: "https://{{instance}}.salesforce.com/lightning/o/Dashboard/{{dashboardId}}",
+    description: "Extract Salesforce dashboard metrics and chart data",
+    promptInstructions: "Login to the Salesforce instance. Navigate to the dashboard URL and capture all visible metrics and charts data.",
     creator: "0x7f3a8b2c9d4e5f6a",
     createdAt: Date.now() - 1000 * 60 * 60 * 24,
     active: false,

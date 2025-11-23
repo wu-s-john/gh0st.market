@@ -59,8 +59,10 @@ contract JobRegistry is IJobRegistry, ReentrancyGuard {
     {
         specId = _nextSpecId++;
         _specs[specId] = JobSpec({
-            targetDomain: params.targetDomain,
-            instructions: params.instructions,
+            mainDomain: params.mainDomain,
+            notarizeUrl: params.notarizeUrl,
+            description: params.description,
+            promptInstructions: params.promptInstructions,
             outputSchema: params.outputSchema,
             inputSchema: params.inputSchema,
             validationRules: params.validationRules,
@@ -69,7 +71,7 @@ contract JobRegistry is IJobRegistry, ReentrancyGuard {
             active: true
         });
 
-        emit JobSpecCreated(specId, msg.sender, params.targetDomain);
+        emit JobSpecCreated(specId, msg.sender, params.mainDomain);
     }
 
     /// @inheritdoc IJobRegistry
@@ -143,11 +145,11 @@ contract JobRegistry is IJobRegistry, ReentrancyGuard {
         Job storage job = _jobs[jobId];
         if (job.status != JobStatus.Open) revert JobNotOpen();
 
-        // Get the spec's target domain for proof verification
+        // Get the spec's main domain for proof verification
         JobSpec storage spec = _specs[job.specId];
 
-        // Verify proof against the spec's target domain
-        if (!proofVerifier.verifyProof(proof, spec.targetDomain)) {
+        // Verify proof against the spec's main domain
+        if (!proofVerifier.verifyProof(proof, spec.mainDomain)) {
             revert InvalidProof();
         }
 

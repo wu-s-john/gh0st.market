@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui";
 
 export interface CreateJobSpecParams {
-  targetDomain: string;
-  instructions: string;
+  mainDomain: string;
+  notarizeUrl: string;
+  description: string;
+  promptInstructions: string;
   outputSchema: string;
   inputSchema: string;
   validationRules: string;
@@ -25,8 +27,10 @@ export function CreateSpecModal({
   isSubmitting = false,
 }: CreateSpecModalProps) {
   const [formData, setFormData] = useState<CreateJobSpecParams>({
-    targetDomain: "",
-    instructions: "",
+    mainDomain: "",
+    notarizeUrl: "",
+    description: "",
+    promptInstructions: "",
     outputSchema: "",
     inputSchema: "",
     validationRules: "",
@@ -36,8 +40,10 @@ export function CreateSpecModal({
   useEffect(() => {
     if (isOpen) {
       setFormData({
-        targetDomain: "",
-        instructions: "",
+        mainDomain: "",
+        notarizeUrl: "",
+        description: "",
+        promptInstructions: "",
         outputSchema: "",
         inputSchema: "",
         validationRules: "",
@@ -75,8 +81,10 @@ export function CreateSpecModal({
   };
 
   const isValid =
-    formData.targetDomain.trim() !== "" &&
-    formData.instructions.trim() !== "" &&
+    formData.mainDomain.trim() !== "" &&
+    formData.notarizeUrl.trim() !== "" &&
+    formData.description.trim() !== "" &&
+    formData.promptInstructions.trim() !== "" &&
     formData.inputSchema.trim() !== "" &&
     formData.outputSchema.trim() !== "";
 
@@ -120,19 +128,19 @@ export function CreateSpecModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Target Domain */}
+          {/* Main Domain */}
           <div>
             <label
-              htmlFor="targetDomain"
+              htmlFor="mainDomain"
               className="block text-sm font-medium text-[var(--text-secondary)] mb-2"
             >
-              Target Domain
+              Main Domain
             </label>
             <input
               type="text"
-              id="targetDomain"
-              name="targetDomain"
-              value={formData.targetDomain}
+              id="mainDomain"
+              name="mainDomain"
+              value={formData.mainDomain}
               onChange={handleChange}
               placeholder="e.g., crunchbase.com"
               className="w-full px-3 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-md text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
@@ -140,20 +148,63 @@ export function CreateSpecModal({
             />
           </div>
 
-          {/* Instructions */}
+          {/* Notarize URL */}
           <div>
             <label
-              htmlFor="instructions"
+              htmlFor="notarizeUrl"
               className="block text-sm font-medium text-[var(--text-secondary)] mb-2"
             >
-              Instructions
+              Notarize URL
+            </label>
+            <input
+              type="text"
+              id="notarizeUrl"
+              name="notarizeUrl"
+              value={formData.notarizeUrl}
+              onChange={handleChange}
+              placeholder="https://crunchbase.com/organization/{{orgSlug}}"
+              className="w-full px-3 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-md font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+              disabled={isSubmitting}
+            />
+            <p className="mt-1.5 text-xs text-[var(--text-muted)]">
+              Use {"{{variableName}}"} for dynamic values defined in Input Schema
+            </p>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label
+              htmlFor="description"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-2"
+            >
+              Description
+            </label>
+            <input
+              type="text"
+              id="description"
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Short description for browsing (e.g., Fetch Crunchbase org profiles)"
+              className="w-full px-3 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-md text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Prompt Instructions */}
+          <div>
+            <label
+              htmlFor="promptInstructions"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-2"
+            >
+              Prompt Instructions
             </label>
             <textarea
-              id="instructions"
-              name="instructions"
-              value={formData.instructions}
+              id="promptInstructions"
+              name="promptInstructions"
+              value={formData.promptInstructions}
               onChange={handleChange}
-              placeholder="Human/AI readable instructions for fetching the data..."
+              placeholder="Detailed instructions for AI/workers on how to extract and organize the data..."
               rows={4}
               className="w-full px-3 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-md text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors resize-none"
               disabled={isSubmitting}
@@ -178,6 +229,9 @@ export function CreateSpecModal({
               className="w-full px-3 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-md font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors resize-none"
               disabled={isSubmitting}
             />
+            <p className="mt-1.5 text-xs text-[var(--text-muted)]">
+              Define the types for URL placeholder variables
+            </p>
           </div>
 
           {/* Output Schema */}

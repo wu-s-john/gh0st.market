@@ -11,7 +11,7 @@ interface IJobRegistry {
     event JobSpecCreated(
         uint256 indexed specId,
         address indexed creator,
-        string targetDomain
+        string mainDomain
     );
 
     /// @notice Emitted when a job spec's active status changes

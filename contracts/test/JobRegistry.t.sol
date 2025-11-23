@@ -44,10 +44,12 @@ contract JobRegistryTest is Test {
 
         // Setup sample spec params
         sampleSpecParams = CreateJobSpecParams({
-            targetDomain: "crunchbase.com",
-            instructions: "Fetch company funding data",
+            mainDomain: "crunchbase.com",
+            notarizeUrl: "https://crunchbase.com/organization/{{orgSlug}}",
+            description: "Fetch Crunchbase organization funding data",
+            promptInstructions: "Navigate to the organization page and extract funding total from the Financials section",
             outputSchema: '{"type":"object","properties":{"funding":"number"}}',
-            inputSchema: '{"type":"object","properties":{"companyName":"string"}}',
+            inputSchema: '{"type":"object","properties":{"orgSlug":"string"}}',
             validationRules: "funding >= 0"
         });
     }
@@ -185,7 +187,7 @@ contract JobRegistryTest is Test {
         uint256 specId = registry.createJobSpec(sampleSpecParams);
 
         JobSpec memory spec = registry.getJobSpec(specId);
-        assertEq(spec.targetDomain, "crunchbase.com");
+        assertEq(spec.mainDomain, "crunchbase.com");
         assertEq(spec.creator, alice);
         assertEq(spec.active, true);
         assertEq(spec.createdAt, block.timestamp);
@@ -502,8 +504,10 @@ contract JobRegistryTest is Test {
         uint256 specId = registry.createJobSpec(sampleSpecParams);
 
         JobSpec memory spec = registry.getJobSpec(specId);
-        assertEq(spec.targetDomain, sampleSpecParams.targetDomain);
-        assertEq(spec.instructions, sampleSpecParams.instructions);
+        assertEq(spec.mainDomain, sampleSpecParams.mainDomain);
+        assertEq(spec.notarizeUrl, sampleSpecParams.notarizeUrl);
+        assertEq(spec.description, sampleSpecParams.description);
+        assertEq(spec.promptInstructions, sampleSpecParams.promptInstructions);
         assertEq(spec.outputSchema, sampleSpecParams.outputSchema);
         assertEq(spec.inputSchema, sampleSpecParams.inputSchema);
         assertEq(spec.validationRules, sampleSpecParams.validationRules);

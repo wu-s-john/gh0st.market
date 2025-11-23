@@ -9,10 +9,12 @@ enum JobStatus {
 
 /// @notice A reusable template that defines what data to fetch and how
 struct JobSpec {
-    string targetDomain;        // Target domain (e.g. "crunchbase.com")
-    string instructions;        // Human/AI readable instructions for fetching data
+    string mainDomain;          // Main domain for categorization (e.g. "crunchbase.com")
+    string notarizeUrl;         // URL template with {{placeholders}} (e.g. "https://crunchbase.com/organization/{{orgSlug}}")
+    string description;         // Short description for browsing/discovery
+    string promptInstructions;  // Detailed instructions for AI/workers on data extraction
     string outputSchema;        // Expected JSON output schema
-    string inputSchema;         // JSON schema for required inputs
+    string inputSchema;         // JSON schema defining placeholder variable types
     string validationRules;     // Rules for validating the output
     address creator;            // Who created the spec
     uint64 createdAt;
@@ -21,10 +23,12 @@ struct JobSpec {
 
 /// @notice Parameters for creating a new job spec
 struct CreateJobSpecParams {
-    string targetDomain;        // Target domain (e.g. "crunchbase.com")
-    string instructions;        // Instructions for fetching data
+    string mainDomain;          // Main domain for categorization (e.g. "crunchbase.com")
+    string notarizeUrl;         // URL template with {{placeholders}} (e.g. "https://crunchbase.com/organization/{{orgSlug}}")
+    string description;         // Short description for browsing/discovery
+    string promptInstructions;  // Detailed instructions for AI/workers on data extraction
     string outputSchema;        // Expected JSON output schema
-    string inputSchema;         // JSON schema for required inputs
+    string inputSchema;         // JSON schema defining placeholder variable types
     string validationRules;     // Rules for validating the output
 }
 
