@@ -1,15 +1,10 @@
 "use client";
 
-import { useReadContract, usePublicClient } from "wagmi";
+import { useReadContract, usePublicClient, useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
-import { parseAbiItem, type PublicClient } from "viem";
+import { parseAbiItem } from "viem";
 import { jobRegistryAbi } from "@/generated";
-import {
-  JOB_REGISTRY_ADDRESS,
-  DEPLOYMENT_BLOCK,
-  jobRegistryConfig,
-} from "@/lib/contracts";
-import { getActiveChain } from "@/lib/chains";
+import { useJobRegistryConfig, useJobRegistryAddress, useDeploymentBlock } from "./useContractConfig";
 
 // Types matching contract structs
 export interface JobSpec {
@@ -61,8 +56,10 @@ const JobCreatedEvent = parseAbiItem(
  * Fetch a single job spec by ID
  */
 export function useJobSpec(specId: bigint | undefined) {
+  const config = useJobRegistryConfig();
+
   return useReadContract({
-    ...jobRegistryConfig,
+    ...config,
     functionName: "getJobSpec",
     args: specId !== undefined ? [specId] : undefined,
     query: {
@@ -75,8 +72,10 @@ export function useJobSpec(specId: bigint | undefined) {
  * Fetch a single job by ID
  */
 export function useJob(jobId: bigint | undefined) {
+  const config = useJobRegistryConfig();
+
   return useReadContract({
-    ...jobRegistryConfig,
+    ...config,
     functionName: "getJob",
     args: jobId !== undefined ? [jobId] : undefined,
     query: {
@@ -89,8 +88,10 @@ export function useJob(jobId: bigint | undefined) {
  * Fetch total job spec count
  */
 export function useJobSpecCount() {
+  const config = useJobRegistryConfig();
+
   return useReadContract({
-    ...jobRegistryConfig,
+    ...config,
     functionName: "getJobSpecCount",
   });
 }
@@ -99,8 +100,10 @@ export function useJobSpecCount() {
  * Fetch total job count
  */
 export function useJobCount() {
+  const config = useJobRegistryConfig();
+
   return useReadContract({
-    ...jobRegistryConfig,
+    ...config,
     functionName: "getJobCount",
   });
 }
@@ -109,20 +112,23 @@ export function useJobCount() {
  * Fetch all job specs created by a specific address using event logs
  */
 export function useUserJobSpecs(userAddress: `0x${string}` | undefined) {
-  const chain = getActiveChain();
-  const publicClient = usePublicClient({ chainId: chain.id });
+  const { chain } = useAccount();
+  const chainId = chain?.id ?? 11155111;
+  const publicClient = usePublicClient({ chainId });
+  const registryAddress = useJobRegistryAddress();
+  const deploymentBlock = useDeploymentBlock();
 
   return useQuery({
-    queryKey: ["userJobSpecs", userAddress, chain.id],
+    queryKey: ["userJobSpecs", userAddress, chainId, registryAddress],
     queryFn: async () => {
       if (!userAddress || !publicClient) return [];
 
       // Fetch JobSpecCreated events filtered by creator
       const logs = await publicClient.getLogs({
-        address: JOB_REGISTRY_ADDRESS,
+        address: registryAddress,
         event: JobSpecCreatedEvent,
         args: { creator: userAddress },
-        fromBlock: DEPLOYMENT_BLOCK,
+        fromBlock: deploymentBlock,
         toBlock: "latest",
       });
 
@@ -131,7 +137,7 @@ export function useUserJobSpecs(userAddress: `0x${string}` | undefined) {
         logs.map(async (log) => {
           const specId = log.args.specId!;
           const spec = await publicClient.readContract({
-            address: JOB_REGISTRY_ADDRESS,
+            address: registryAddress,
             abi: jobRegistryAbi,
             functionName: "getJobSpec",
             args: [specId],
@@ -150,20 +156,23 @@ export function useUserJobSpecs(userAddress: `0x${string}` | undefined) {
  * Fetch all jobs created by a specific address using event logs
  */
 export function useUserJobs(userAddress: `0x${string}` | undefined) {
-  const chain = getActiveChain();
-  const publicClient = usePublicClient({ chainId: chain.id });
+  const { chain } = useAccount();
+  const chainId = chain?.id ?? 11155111;
+  const publicClient = usePublicClient({ chainId });
+  const registryAddress = useJobRegistryAddress();
+  const deploymentBlock = useDeploymentBlock();
 
   return useQuery({
-    queryKey: ["userJobs", userAddress, chain.id],
+    queryKey: ["userJobs", userAddress, chainId, registryAddress],
     queryFn: async () => {
       if (!userAddress || !publicClient) return [];
 
       // Fetch JobCreated events filtered by requester
       const logs = await publicClient.getLogs({
-        address: JOB_REGISTRY_ADDRESS,
+        address: registryAddress,
         event: JobCreatedEvent,
         args: { requester: userAddress },
-        fromBlock: DEPLOYMENT_BLOCK,
+        fromBlock: deploymentBlock,
         toBlock: "latest",
       });
 
@@ -172,7 +181,7 @@ export function useUserJobs(userAddress: `0x${string}` | undefined) {
         logs.map(async (log) => {
           const jobId = log.args.jobId!;
           const job = await publicClient.readContract({
-            address: JOB_REGISTRY_ADDRESS,
+            address: registryAddress,
             abi: jobRegistryAbi,
             functionName: "getJob",
             args: [jobId],
@@ -192,17 +201,19 @@ export function useUserJobs(userAddress: `0x${string}` | undefined) {
  * Uses batch query for efficiency (2 RPC calls instead of N+1)
  */
 export function useAllJobSpecs() {
-  const chain = getActiveChain();
-  const publicClient = usePublicClient({ chainId: chain.id });
+  const { chain } = useAccount();
+  const chainId = chain?.id ?? 11155111;
+  const publicClient = usePublicClient({ chainId });
+  const registryAddress = useJobRegistryAddress();
 
   return useQuery({
-    queryKey: ["allJobSpecs", chain.id],
+    queryKey: ["allJobSpecs", chainId, registryAddress],
     queryFn: async () => {
       if (!publicClient) return [];
 
       // Get total count first
       const count = await publicClient.readContract({
-        address: JOB_REGISTRY_ADDRESS,
+        address: registryAddress,
         abi: jobRegistryAbi,
         functionName: "getJobSpecCount",
       });
@@ -211,7 +222,7 @@ export function useAllJobSpecs() {
 
       // Fetch all specs in one batch call
       const specs = await publicClient.readContract({
-        address: JOB_REGISTRY_ADDRESS,
+        address: registryAddress,
         abi: jobRegistryAbi,
         functionName: "getJobSpecsRange",
         args: [BigInt(0), count],
@@ -231,20 +242,23 @@ export function useAllJobSpecs() {
  * Fetch all jobs for a specific spec
  */
 export function useJobsForSpec(specId: bigint | undefined) {
-  const chain = getActiveChain();
-  const publicClient = usePublicClient({ chainId: chain.id });
+  const { chain } = useAccount();
+  const chainId = chain?.id ?? 11155111;
+  const publicClient = usePublicClient({ chainId });
+  const registryAddress = useJobRegistryAddress();
+  const deploymentBlock = useDeploymentBlock();
 
   return useQuery({
-    queryKey: ["jobsForSpec", specId?.toString(), chain.id],
+    queryKey: ["jobsForSpec", specId?.toString(), chainId, registryAddress],
     queryFn: async () => {
       if (specId === undefined || !publicClient) return [];
 
       // Fetch JobCreated events filtered by specId
       const logs = await publicClient.getLogs({
-        address: JOB_REGISTRY_ADDRESS,
+        address: registryAddress,
         event: JobCreatedEvent,
         args: { specId },
-        fromBlock: DEPLOYMENT_BLOCK,
+        fromBlock: deploymentBlock,
         toBlock: "latest",
       });
 
@@ -253,7 +267,7 @@ export function useJobsForSpec(specId: bigint | undefined) {
         logs.map(async (log) => {
           const jobId = log.args.jobId!;
           const job = await publicClient.readContract({
-            address: JOB_REGISTRY_ADDRESS,
+            address: registryAddress,
             abi: jobRegistryAbi,
             functionName: "getJob",
             args: [jobId],
@@ -265,5 +279,93 @@ export function useJobsForSpec(specId: bigint | undefined) {
       return jobs;
     },
     enabled: specId !== undefined && !!publicClient,
+  });
+}
+
+// Job status enum matching contract
+export const JobStatus = {
+  Open: 0,
+  Completed: 1,
+} as const;
+
+/**
+ * Fetch all open jobs in the system (for worker browse page)
+ * Uses batch query for efficiency, then filters client-side for Open status
+ */
+export function useAllOpenJobs() {
+  const { chain } = useAccount();
+  const chainId = chain?.id ?? 11155111;
+  const publicClient = usePublicClient({ chainId });
+  const registryAddress = useJobRegistryAddress();
+
+  return useQuery({
+    queryKey: ["allOpenJobs", chainId, registryAddress],
+    queryFn: async () => {
+      if (!publicClient) return [];
+
+      // Get total count first
+      const count = await publicClient.readContract({
+        address: registryAddress,
+        abi: jobRegistryAbi,
+        functionName: "getJobCount",
+      });
+
+      if (count === BigInt(0)) return [];
+
+      // Fetch all jobs in one batch call
+      const jobs = await publicClient.readContract({
+        address: registryAddress,
+        abi: jobRegistryAbi,
+        functionName: "getJobsRange",
+        args: [BigInt(0), count],
+      });
+
+      // Add IDs and filter to only Open jobs
+      return jobs
+        .map((job, index) => ({
+          ...job,
+          id: BigInt(index),
+        }))
+        .filter((job) => job.status === JobStatus.Open) as JobWithId[];
+    },
+    enabled: !!publicClient,
+  });
+}
+
+/**
+ * Fetch all jobs (including completed) for analytics/history
+ */
+export function useAllJobs() {
+  const { chain } = useAccount();
+  const chainId = chain?.id ?? 11155111;
+  const publicClient = usePublicClient({ chainId });
+  const registryAddress = useJobRegistryAddress();
+
+  return useQuery({
+    queryKey: ["allJobs", chainId, registryAddress],
+    queryFn: async () => {
+      if (!publicClient) return [];
+
+      const count = await publicClient.readContract({
+        address: registryAddress,
+        abi: jobRegistryAbi,
+        functionName: "getJobCount",
+      });
+
+      if (count === BigInt(0)) return [];
+
+      const jobs = await publicClient.readContract({
+        address: registryAddress,
+        abi: jobRegistryAbi,
+        functionName: "getJobsRange",
+        args: [BigInt(0), count],
+      });
+
+      return jobs.map((job, index) => ({
+        ...job,
+        id: BigInt(index),
+      })) as JobWithId[];
+    },
+    enabled: !!publicClient,
   });
 }

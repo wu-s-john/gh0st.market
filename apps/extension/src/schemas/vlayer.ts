@@ -70,7 +70,7 @@ export const VlayerVerifyOutputSchema = z.object({
     /** HTTP status code */
     status: z.number().optional(),
     /** Response headers */
-    headers: z.record(z.string()).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
     /** Response body content */
     body: z.string(),
   }),

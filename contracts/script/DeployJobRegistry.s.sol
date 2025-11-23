@@ -9,9 +9,7 @@ import {ProofVerifier} from "../src/ProofVerifier.sol";
 /// @notice Deployment script for JobRegistry and ProofVerifier
 contract DeployJobRegistry is Script {
     function run() external returns (JobRegistry registry, ProofVerifier verifier) {
-        uint256 deployerPrivateKey = vm.envUint("LOCAL_ETH_PRIVATE_KEY1");
-
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         // Deploy ProofVerifier first
         verifier = new ProofVerifier();

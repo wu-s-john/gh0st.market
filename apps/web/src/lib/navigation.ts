@@ -29,7 +29,7 @@ export function getRoleFromPath(path: string): Role | null {
 export interface NavItem {
   label: string;
   href: string;
-  icon: "dashboard" | "specs" | "extension";
+  icon: "dashboard" | "specs" | "extension" | "settings";
 }
 
 export function getNavItems(role: Role): NavItem[] {
@@ -55,6 +55,13 @@ export function getNavItems(role: Role): NavItem[] {
     });
   }
 
+  // Both roles get settings
+  baseItems.push({
+    label: "Settings",
+    href: `/${role}/settings`,
+    icon: "settings",
+  });
+
   return baseItems;
 }
 
@@ -72,6 +79,11 @@ export function isNavItemActive(itemHref: string, currentPath: string): boolean 
 
   // For Extension, match extension path
   if (itemHref.endsWith("/extension") && currentPath.includes("/extension")) {
+    return true;
+  }
+
+  // For Settings, match settings path
+  if (itemHref.endsWith("/settings") && currentPath.includes("/settings")) {
     return true;
   }
 

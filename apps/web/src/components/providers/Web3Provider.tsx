@@ -1,12 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { DynamicWagmiConnector } from "@dynamic-labs/wagmi-connector";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sepolia } from "viem/chains";
-import { localhost, getActiveChain } from "@/lib/chains";
+import { localhost } from "@/lib/chains";
 
 // NOTE: Dynamic theming is configured via the Dashboard Design Editor
 // at https://app.dynamic.xyz/dashboard/design - NOT via code.
@@ -46,7 +47,7 @@ const evmNetworks = [
   },
 ];
 
-// Wagmi config with both chains
+// Wagmi config with both chains - user can switch via wallet
 const wagmiConfig = createConfig({
   chains: [localhost, sepolia],
   multiInjectedProviderDiscovery: false,
@@ -56,22 +57,24 @@ const wagmiConfig = createConfig({
   },
 });
 
-// React Query client
-const queryClient = new QueryClient();
-
 export function Web3Provider({ children }: { children: React.ReactNode }) {
-  const activeChain = getActiveChain();
+  // Memoize settings to prevent Dynamic SDK reinitialization on re-renders
+  const settings = useMemo(
+    () => ({
+      environmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? "",
+      walletConnectors: [EthereumWalletConnectors],
+      overrides: {
+        evmNetworks,
+      },
+    }),
+    []
+  );
+
+  // Use useState to ensure QueryClient persists across re-renders
+  const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <DynamicContextProvider
-      settings={{
-        environmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? "",
-        walletConnectors: [EthereumWalletConnectors],
-        overrides: {
-          evmNetworks,
-        },
-      }}
-    >
+    <DynamicContextProvider settings={settings}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <DynamicWagmiConnector>

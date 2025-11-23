@@ -1,94 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ExtensionRequiredCard } from "@/components/ExtensionRequiredCard";
 import { Button } from "@/components/ui";
+import { useExtensionStatus } from "@/components/ExtensionStatus";
+import {
+  useFollowedSpecs,
+  useFollowSpec,
+  type FollowedSpec,
+} from "@/hooks/useExtension";
+import {
+  useAllJobSpecs,
+  useAllOpenJobs,
+  type JobSpecWithId,
+} from "@/hooks/useJobRegistry";
 
-// Worker-specific spec type with approval status
+type FilterType = "all" | "approved" | "not_approved";
+
+// Combined spec type for UI
 interface WorkerJobSpec {
-  id: string;
+  id: bigint;
   mainDomain: string;
   notarizeUrl: string;
   description: string;
   creator: string;
-  createdAt: number;
+  createdAt: bigint;
   active: boolean;
   jobCount: number;
-  // Worker-specific fields
   isApproved: boolean;
-  minPrice?: string;
-  token?: string;
+  minBounty?: number;
 }
 
-type FilterType = "all" | "approved" | "not_approved";
-
-// Mock data - all specs in the ecosystem with approval status
-const mockAllSpecs: WorkerJobSpec[] = [
-  {
-    id: "1",
-    mainDomain: "crunchbase.com",
-    notarizeUrl: "https://crunchbase.com/organization/{{orgSlug}}",
-    description: "Fetch Crunchbase organization profiles with funding and employee data",
-    creator: "0x7f3a8b2c9d4e5f6a",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 7,
-    active: true,
-    jobCount: 47,
-    isApproved: true,
-    minPrice: "0.25",
-    token: "USDC",
-  },
-  {
-    id: "2",
-    mainDomain: "linkedin.com",
-    notarizeUrl: "https://linkedin.com/company/{{companySlug}}",
-    description: "Get LinkedIn company profiles with employee count and headquarters",
-    creator: "0x2b1c3d4e5f6a7b8c",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 5,
-    active: true,
-    jobCount: 23,
-    isApproved: true,
-    minPrice: "0.50",
-    token: "USDC",
-  },
-  {
-    id: "3",
-    mainDomain: "salesforce.com",
-    notarizeUrl: "https://{{instance}}.salesforce.com/lightning/o/Dashboard/{{dashboardId}}",
-    description: "Extract Salesforce dashboard metrics and chart data",
-    creator: "0x9c4d5e6f7a8b9c0d",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
-    active: true,
-    jobCount: 12,
-    isApproved: false,
-  },
-  {
-    id: "4",
-    mainDomain: "github.com",
-    notarizeUrl: "https://github.com/{{owner}}/{{repo}}",
-    description: "Fetch GitHub repository stats including stars, forks, and contributors",
-    creator: "0x1a2b3c4d5e6f7a8b",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
-    active: true,
-    jobCount: 8,
-    isApproved: true,
-    minPrice: "0.10",
-    token: "USDC",
-  },
-  {
-    id: "5",
-    mainDomain: "pitchbook.com",
-    notarizeUrl: "https://pitchbook.com/profiles/company/{{companyId}}",
-    description: "Retrieve PitchBook company valuation and funding data",
-    creator: "0x3c4d5e6f7a8b9c0d",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    active: false,
-    jobCount: 3,
-    isApproved: false,
-  },
-];
-
-function ApprovalStatusBadge({ isApproved, minPrice, token }: { isApproved: boolean; minPrice?: string; token?: string }) {
+function ApprovalStatusBadge({
+  isApproved,
+  minBounty,
+}: {
+  isApproved: boolean;
+  minBounty?: number;
+}) {
   if (isApproved) {
     return (
       <div className="flex flex-col">
@@ -96,9 +48,9 @@ function ApprovalStatusBadge({ isApproved, minPrice, token }: { isApproved: bool
           <span className="w-2 h-2 rounded-full bg-current" />
           Approved
         </span>
-        {minPrice && (
+        {minBounty !== undefined && minBounty > 0 && (
           <span className="text-xs text-[var(--text-muted)] mt-0.5">
-            Min: {minPrice} {token}
+            Min: {minBounty} ETH
           </span>
         )}
       </div>
@@ -117,18 +69,21 @@ function WorkerJobSpecCard({
   spec,
   onApprove,
   onClick,
+  extensionConnected,
 }: {
   spec: WorkerJobSpec;
   onApprove: (spec: WorkerJobSpec) => void;
-  onClick: (specId: string) => void;
+  onClick: (specId: bigint) => void;
+  extensionConnected: boolean;
 }) {
   return (
     <div
       className={`
         bg-[var(--surface)] border rounded-lg p-5 transition-all duration-150
-        ${spec.isApproved
-          ? "border-[var(--accent-muted)] hover:border-[var(--accent)]"
-          : "border-[var(--border)] hover:border-[var(--border-hover)]"
+        ${
+          spec.isApproved
+            ? "border-[var(--accent-muted)] hover:border-[var(--accent)]"
+            : "border-[var(--border)] hover:border-[var(--border-hover)]"
         }
       `}
     >
@@ -137,16 +92,12 @@ function WorkerJobSpecCard({
         <h3 className="font-[family-name:var(--font-jetbrains-mono)] text-base font-semibold text-[var(--text-primary)]">
           {spec.mainDomain}
         </h3>
-        <ApprovalStatusBadge
-          isApproved={spec.isApproved}
-          minPrice={spec.minPrice}
-          token={spec.token}
-        />
+        <ApprovalStatusBadge isApproved={spec.isApproved} minBounty={spec.minBounty} />
       </div>
 
       {/* Description */}
       <p className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-2">
-        {spec.description}
+        {spec.description || "No description provided"}
       </p>
 
       {/* Stats */}
@@ -163,17 +114,14 @@ function WorkerJobSpecCard({
       <div className="flex gap-2">
         {spec.isApproved ? (
           <>
-            <Button
-              size="sm"
-              onClick={() => onClick(spec.id)}
-              className="flex-1"
-            >
+            <Button size="sm" onClick={() => onClick(spec.id)} className="flex-1">
               View Jobs
             </Button>
             <Button
               size="sm"
               variant="secondary"
               onClick={() => onApprove(spec)}
+              disabled={!extensionConnected}
             >
               Edit
             </Button>
@@ -183,8 +131,9 @@ function WorkerJobSpecCard({
             size="sm"
             onClick={() => onApprove(spec)}
             className="flex-1"
+            disabled={!extensionConnected}
           >
-            Approve
+            {extensionConnected ? "Approve" : "Install Extension"}
           </Button>
         )}
       </div>
@@ -192,7 +141,6 @@ function WorkerJobSpecCard({
   );
 }
 
-// ApproveSpecModal inline for now
 function ApproveSpecModal({
   isOpen,
   onClose,
@@ -202,11 +150,11 @@ function ApproveSpecModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (specId: string, minPrice: string) => void;
+  onSubmit: (specId: bigint, minBounty: number) => void;
   spec: WorkerJobSpec | null;
   isSubmitting: boolean;
 }) {
-  const [minPrice, setMinPrice] = useState(spec?.minPrice || "0.25");
+  const [minBounty, setMinBounty] = useState(spec?.minBounty?.toString() || "0");
 
   if (!isOpen || !spec) return null;
 
@@ -227,7 +175,13 @@ function ApproveSpecModal({
           className="absolute top-4 right-4 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           aria-label="Close modal"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -243,7 +197,7 @@ function ApproveSpecModal({
             {spec.mainDomain}
           </h3>
           <p className="text-sm text-[var(--text-secondary)] mb-4">
-            {spec.description}
+            {spec.description || "No description provided"}
           </p>
 
           <div className="p-3 bg-[var(--background)] border border-[var(--border)] rounded-md mb-4">
@@ -254,11 +208,12 @@ function ApproveSpecModal({
           </div>
 
           <p className="text-xs text-[var(--text-muted)]">
-            By approving, you confirm you have authorized access to {spec.mainDomain} and can complete these data collection jobs.
+            By approving, you confirm you have authorized access to {spec.mainDomain} and
+            can complete these data collection jobs.
           </p>
         </div>
 
-        {/* Min Price Input */}
+        {/* Min Bounty Input */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
             Minimum bounty you&apos;ll accept
@@ -266,14 +221,14 @@ function ApproveSpecModal({
           <div className="flex items-center gap-2">
             <input
               type="number"
-              step="0.01"
+              step="0.0001"
               min="0"
-              value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
+              value={minBounty}
+              onChange={(e) => setMinBounty(e.target.value)}
               className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] font-[family-name:var(--font-jetbrains-mono)] focus:outline-none focus:border-[var(--accent)]"
-              placeholder="0.25"
+              placeholder="0.001"
             />
-            <span className="text-sm text-[var(--text-muted)]">USDC</span>
+            <span className="text-sm text-[var(--text-muted)]">ETH</span>
           </div>
           <p className="text-xs text-[var(--text-muted)] mt-2">
             Jobs below this price won&apos;t appear in your available queue.
@@ -286,8 +241,8 @@ function ApproveSpecModal({
             Cancel
           </Button>
           <Button
-            onClick={() => onSubmit(spec.id, minPrice)}
-            disabled={isSubmitting || !minPrice}
+            onClick={() => onSubmit(spec.id, parseFloat(minBounty) || 0)}
+            disabled={isSubmitting}
             className="flex-1"
           >
             {isSubmitting ? "..." : spec.isApproved ? "Update" : "Approve Spec"}
@@ -300,37 +255,111 @@ function ApproveSpecModal({
 
 export default function WorkerBrowseSpecsPage() {
   const router = useRouter();
+  const { address } = useAccount();
+  const { connected: extensionConnected } = useExtensionStatus();
+
   const [filter, setFilter] = useState<FilterType>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSpec, setSelectedSpec] = useState<WorkerJobSpec | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredSpecs = mockAllSpecs.filter((spec) => {
-    if (filter === "approved") return spec.isApproved;
-    if (filter === "not_approved") return !spec.isApproved;
-    return true;
-  });
+  // Data from blockchain
+  const { data: allSpecs, isLoading: specsLoading } = useAllJobSpecs();
+  const { data: allOpenJobs, isLoading: jobsLoading } = useAllOpenJobs();
+
+  // Data from extension
+  const { specs: followedSpecs, loading: followedLoading } = useFollowedSpecs(address);
+  const { followSpec, unfollowSpec } = useFollowSpec();
+
+  // Create lookup for followed specs
+  const followedSpecMap = useMemo(() => {
+    const map = new Map<number, FollowedSpec>();
+    followedSpecs.forEach((s) => map.set(s.specId, s));
+    return map;
+  }, [followedSpecs]);
+
+  // Count open jobs per spec
+  const jobCountBySpec = useMemo(() => {
+    const counts = new Map<number, number>();
+    allOpenJobs?.forEach((job) => {
+      const specId = Number(job.specId);
+      counts.set(specId, (counts.get(specId) || 0) + 1);
+    });
+    return counts;
+  }, [allOpenJobs]);
+
+  // Merge blockchain specs with extension approval data
+  const mergedSpecs: WorkerJobSpec[] = useMemo(() => {
+    if (!allSpecs) return [];
+
+    return allSpecs.map((spec) => {
+      const specId = Number(spec.id);
+      const followed = followedSpecMap.get(specId);
+
+      return {
+        id: spec.id,
+        mainDomain: spec.mainDomain,
+        notarizeUrl: spec.notarizeUrl,
+        description: spec.description,
+        creator: spec.creator,
+        createdAt: spec.createdAt,
+        active: spec.active,
+        jobCount: jobCountBySpec.get(specId) || 0,
+        isApproved: !!followed,
+        minBounty: followed?.minBounty,
+      };
+    });
+  }, [allSpecs, followedSpecMap, jobCountBySpec]);
+
+  // Apply filter
+  const filteredSpecs = useMemo(() => {
+    return mergedSpecs.filter((spec) => {
+      if (filter === "approved") return spec.isApproved;
+      if (filter === "not_approved") return !spec.isApproved;
+      return true;
+    });
+  }, [mergedSpecs, filter]);
 
   const handleApprove = (spec: WorkerJobSpec) => {
     setSelectedSpec(spec);
     setIsModalOpen(true);
   };
 
-  const handleSubmitApproval = async (specId: string, minPrice: string) => {
+  const handleSubmitApproval = async (specId: bigint, minBounty: number) => {
+    if (!address) return;
+
     setIsSubmitting(true);
-    console.log("Approving spec:", specId, "with min price:", minPrice);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const spec = mergedSpecs.find((s) => s.id === specId);
+    if (!spec) {
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      await followSpec({
+        specId: Number(specId),
+        walletAddress: address,
+        mainDomain: spec.mainDomain,
+        minBounty,
+        autoClaim: false,
+      });
+    } catch (error) {
+      console.error("Failed to approve spec:", error);
+    }
+
     setIsSubmitting(false);
     setIsModalOpen(false);
     setSelectedSpec(null);
   };
 
-  const handleSpecClick = (specId: string) => {
-    router.push(`/worker/jobSpecs/${specId}/jobs`);
+  const handleSpecClick = (specId: bigint) => {
+    router.push(`/worker/jobSpecs/${specId.toString()}/jobs`);
   };
 
-  const approvedCount = mockAllSpecs.filter((s) => s.isApproved).length;
-  const notApprovedCount = mockAllSpecs.filter((s) => !s.isApproved).length;
+  const approvedCount = mergedSpecs.filter((s) => s.isApproved).length;
+  const notApprovedCount = mergedSpecs.filter((s) => !s.isApproved).length;
+  const isLoading = specsLoading || jobsLoading || followedLoading;
 
   return (
     <DashboardLayout role="worker">
@@ -346,6 +375,16 @@ export default function WorkerBrowseSpecsPage() {
         </div>
       </div>
 
+      {/* Extension Warning */}
+      {!extensionConnected && (
+        <div className="mb-6">
+          <ExtensionRequiredCard
+            title="Extension Required for Approvals"
+            description="You can browse job specs, but you need the extension installed to approve them and start working."
+          />
+        </div>
+      )}
+
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6">
         <button
@@ -356,7 +395,7 @@ export default function WorkerBrowseSpecsPage() {
               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"
           }`}
         >
-          All ({mockAllSpecs.length})
+          All ({mergedSpecs.length})
         </button>
         <button
           onClick={() => setFilter("approved")}
@@ -380,27 +419,37 @@ export default function WorkerBrowseSpecsPage() {
         </button>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <p className="text-[var(--text-muted)]">Loading job specs from blockchain...</p>
+        </div>
+      )}
+
       {/* Specs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredSpecs.map((spec) => (
-          <WorkerJobSpecCard
-            key={spec.id}
-            spec={spec}
-            onApprove={handleApprove}
-            onClick={handleSpecClick}
-          />
-        ))}
-      </div>
+      {!isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSpecs.map((spec) => (
+            <WorkerJobSpecCard
+              key={spec.id.toString()}
+              spec={spec}
+              onApprove={handleApprove}
+              onClick={handleSpecClick}
+              extensionConnected={extensionConnected}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
-      {filteredSpecs.length === 0 && (
+      {!isLoading && filteredSpecs.length === 0 && (
         <div className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
             {filter === "approved"
               ? "You haven't approved any specs yet."
               : filter === "not_approved"
-              ? "You've approved all available specs!"
-              : "No job specs found in the ecosystem yet."}
+                ? "You've approved all available specs!"
+                : "No job specs found in the ecosystem yet."}
           </p>
           {filter !== "all" && (
             <Button variant="secondary" onClick={() => setFilter("all")}>

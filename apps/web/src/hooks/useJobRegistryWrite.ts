@@ -3,7 +3,7 @@
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
 import { jobRegistryAbi } from "@/generated";
-import { JOB_REGISTRY_ADDRESS } from "@/lib/contracts";
+import { useJobRegistryAddress } from "./useContractConfig";
 
 // Params for creating a job spec (matches contract struct)
 export interface CreateJobSpecParams {
@@ -29,6 +29,7 @@ export interface CreateJobParams {
  * Hook for creating a new job spec
  */
 export function useCreateJobSpec() {
+  const registryAddress = useJobRegistryAddress();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -37,7 +38,7 @@ export function useCreateJobSpec() {
 
   const createJobSpec = (params: CreateJobSpecParams) => {
     writeContract({
-      address: JOB_REGISTRY_ADDRESS,
+      address: registryAddress,
       abi: jobRegistryAbi,
       functionName: "createJobSpec",
       args: [
@@ -68,6 +69,7 @@ export function useCreateJobSpec() {
  * Hook for creating a new job with bounty
  */
 export function useCreateJob() {
+  const registryAddress = useJobRegistryAddress();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -78,7 +80,7 @@ export function useCreateJob() {
     const isEthPayment = params.token === "0x0000000000000000000000000000000000000000";
 
     writeContract({
-      address: JOB_REGISTRY_ADDRESS,
+      address: registryAddress,
       abi: jobRegistryAbi,
       functionName: "createJob",
       args: [
@@ -109,6 +111,7 @@ export function useCreateJob() {
  * Hook for toggling job spec active status
  */
 export function useSetJobSpecActive() {
+  const registryAddress = useJobRegistryAddress();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -117,7 +120,7 @@ export function useSetJobSpecActive() {
 
   const setJobSpecActive = (specId: bigint, active: boolean) => {
     writeContract({
-      address: JOB_REGISTRY_ADDRESS,
+      address: registryAddress,
       abi: jobRegistryAbi,
       functionName: "setJobSpecActive",
       args: [specId, active],
@@ -138,6 +141,7 @@ export function useSetJobSpecActive() {
  * Hook for submitting work (worker flow)
  */
 export function useSubmitWork() {
+  const registryAddress = useJobRegistryAddress();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -151,7 +155,7 @@ export function useSubmitWork() {
     paymentAddress: `0x${string}`
   ) => {
     writeContract({
-      address: JOB_REGISTRY_ADDRESS,
+      address: registryAddress,
       abi: jobRegistryAbi,
       functionName: "submitWork",
       args: [jobId, resultPayload, proof, paymentAddress],

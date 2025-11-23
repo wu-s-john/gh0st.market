@@ -1,134 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
+import { formatEther } from "viem";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { ExtensionStatus } from "@/components/ExtensionStatus";
+import { ExtensionStatus, useExtensionStatus } from "@/components/ExtensionStatus";
+import { ExtensionRequiredCard } from "@/components/ExtensionRequiredCard";
 import { Button } from "@/components/ui";
+import { useExtensionJob } from "@/hooks/useExtensionJob";
+import {
+  useFollowedSpecs,
+  useActiveJobs,
+  type FollowedSpec,
+  type ActiveJob,
+} from "@/hooks/useExtension";
+import {
+  useAllOpenJobs,
+  useAllJobSpecs,
+  type JobWithId,
+  type JobSpecWithId,
+} from "@/hooks/useJobRegistry";
 
-// Worker-specific job status types
-export type WorkerJobStatus =
-  | "Available"
-  | "Claimed"
-  | "Running"
-  | "PendingProof"
-  | "Submitted"
-  | "Verified"
-  | "Failed";
-
-export interface WorkerJob {
-  id: string;
-  specId: string;
-  specDomain: string;
-  status: WorkerJobStatus;
-  bounty: string;
-  token: string;
-  createdAt: number;
-  input?: Record<string, string>;
+// Map extension job status to UI display
+function mapExtensionStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    pending: "Starting",
+    navigating: "Navigating",
+    collecting: "Collecting",
+    generating_proof: "Generating Proof",
+    submitting: "Submitting",
+    completed: "Completed",
+    failed: "Failed",
+  };
+  return statusMap[status] || status;
 }
-
-export interface ApprovedSpec {
-  id: string;
-  mainDomain: string;
-  minPrice: string;
-  token: string;
-  availableJobs: number;
-}
-
-// Mock data
-const mockActiveTasks: WorkerJob[] = [
-  {
-    id: "0x7f3a8b2c9d4e5f6a1b2c3d4e5f6a7b8c",
-    specId: "1",
-    specDomain: "crunchbase.com",
-    status: "Running",
-    bounty: "0.50",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 2,
-    input: { orgSlug: "anthropic" },
-  },
-  {
-    id: "0x2b1c3d4e5f6a7b8c9d0e1f2a3b4c5d6e",
-    specId: "2",
-    specDomain: "linkedin.com",
-    status: "PendingProof",
-    bounty: "1.20",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 15,
-    input: { companySlug: "openai" },
-  },
-];
-
-const mockApprovedSpecs: ApprovedSpec[] = [
-  {
-    id: "1",
-    mainDomain: "crunchbase.com",
-    minPrice: "0.25",
-    token: "USDC",
-    availableJobs: 12,
-  },
-  {
-    id: "2",
-    mainDomain: "linkedin.com",
-    minPrice: "0.50",
-    token: "USDC",
-    availableJobs: 5,
-  },
-  {
-    id: "4",
-    mainDomain: "github.com",
-    minPrice: "0.10",
-    token: "USDC",
-    availableJobs: 23,
-  },
-];
-
-const mockAvailableJobs: WorkerJob[] = [
-  {
-    id: "0x9c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-    specId: "1",
-    specDomain: "crunchbase.com",
-    status: "Available",
-    bounty: "2.00",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 2,
-  },
-  {
-    id: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
-    specId: "2",
-    specDomain: "linkedin.com",
-    status: "Available",
-    bounty: "1.50",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 15,
-  },
-  {
-    id: "0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-    specId: "1",
-    specDomain: "crunchbase.com",
-    status: "Available",
-    bounty: "0.75",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 60,
-  },
-  {
-    id: "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a",
-    specId: "4",
-    specDomain: "github.com",
-    status: "Available",
-    bounty: "0.30",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 120,
-  },
-];
 
 function truncateAddress(address: string): string {
   if (address.length <= 10) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function formatTimeAgo(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+function formatTimeAgo(timestamp: number | bigint): string {
+  const ts = typeof timestamp === "bigint" ? Number(timestamp) * 1000 : timestamp;
+  const seconds = Math.floor((Date.now() - ts) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
@@ -138,46 +53,127 @@ function formatTimeAgo(timestamp: number): string {
   return `${days}d ago`;
 }
 
-function WorkerJobStatusBadge({ status }: { status: WorkerJobStatus }) {
-  const config: Record<WorkerJobStatus, { color: string; label: string }> = {
-    Available: { color: "var(--text-muted)", label: "Available" },
-    Claimed: { color: "var(--accent)", label: "Claimed" },
-    Running: { color: "var(--accent)", label: "Running" },
-    PendingProof: { color: "var(--warning)", label: "Pending Proof" },
-    Submitted: { color: "var(--info)", label: "Submitted" },
-    Verified: { color: "var(--success)", label: "Verified" },
-    Failed: { color: "var(--error)", label: "Failed" },
-  };
+function formatBounty(bounty: bigint): string {
+  const eth = formatEther(bounty);
+  // Show up to 4 decimal places
+  const num = parseFloat(eth);
+  return num < 0.0001 ? "<0.0001" : num.toFixed(4);
+}
 
-  const { color, label } = config[status];
+function ActiveTaskStatusBadge({ status }: { status: string }) {
+  const isRunning = ["pending", "navigating", "collecting", "generating_proof", "submitting"].includes(status);
+  const isFailed = status === "failed";
+  const isCompleted = status === "completed";
+
+  const color = isFailed
+    ? "var(--error)"
+    : isCompleted
+      ? "var(--success)"
+      : "var(--accent)";
 
   return (
     <span className="inline-flex items-center gap-1.5" style={{ color }}>
       <span
-        className={`w-2 h-2 rounded-full ${status === "Running" ? "animate-pulse" : ""}`}
+        className={`w-2 h-2 rounded-full ${isRunning ? "animate-pulse" : ""}`}
         style={{ backgroundColor: color }}
       />
-      {label}
+      {mapExtensionStatus(status)}
     </span>
   );
 }
 
 export default function WorkerDashboard() {
   const router = useRouter();
-  const [claimingJobId, setClaimingJobId] = useState<string | null>(null);
+  const { address } = useAccount();
+  const { connected: extensionConnected } = useExtensionStatus();
+  const { startJob, isRunning } = useExtensionJob();
 
-  const handleClaimJob = async (jobId: string) => {
-    setClaimingJobId(jobId);
-    // TODO: Open claim modal and handle claiming
-    console.log("Claiming job:", jobId);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setClaimingJobId(null);
+  // Data from extension
+  const {
+    specs: followedSpecs,
+    loading: followedSpecsLoading,
+  } = useFollowedSpecs(address);
+
+  const {
+    jobs: activeJobs,
+    loading: activeJobsLoading,
+  } = useActiveJobs();
+
+  // Data from blockchain
+  const { data: allOpenJobs, isLoading: openJobsLoading } = useAllOpenJobs();
+  const { data: allSpecs, isLoading: specsLoading } = useAllJobSpecs();
+
+  // Create lookup maps
+  const followedSpecIds = useMemo(() => {
+    return new Set(followedSpecs.map((s) => s.specId));
+  }, [followedSpecs]);
+
+  const followedSpecMap = useMemo(() => {
+    const map = new Map<number, FollowedSpec>();
+    followedSpecs.forEach((s) => map.set(s.specId, s));
+    return map;
+  }, [followedSpecs]);
+
+  const specMap = useMemo(() => {
+    const map = new Map<bigint, JobSpecWithId>();
+    allSpecs?.forEach((s) => map.set(s.id, s));
+    return map;
+  }, [allSpecs]);
+
+  // Filter available jobs to those matching followed specs
+  const availableJobs = useMemo(() => {
+    if (!allOpenJobs || !extensionConnected) return [];
+
+    return allOpenJobs.filter((job) => {
+      const specId = Number(job.specId);
+      if (!followedSpecIds.has(specId)) return false;
+
+      // Check minimum bounty
+      const followedSpec = followedSpecMap.get(specId);
+      if (followedSpec && followedSpec.minBounty > 0) {
+        const bountyEth = parseFloat(formatEther(job.bounty));
+        if (bountyEth < followedSpec.minBounty) return false;
+      }
+
+      return true;
+    });
+  }, [allOpenJobs, followedSpecIds, followedSpecMap, extensionConnected]);
+
+  // Count available jobs per followed spec
+  const jobCountBySpec = useMemo(() => {
+    const counts = new Map<number, number>();
+    availableJobs.forEach((job) => {
+      const specId = Number(job.specId);
+      counts.set(specId, (counts.get(specId) || 0) + 1);
+    });
+    return counts;
+  }, [availableJobs]);
+
+  const handleClaimJob = (job: JobWithId) => {
+    const spec = specMap.get(job.specId);
+    if (!spec) return;
+
+    let inputs: Record<string, string> = {};
+    try {
+      inputs = job.inputs ? JSON.parse(job.inputs) : {};
+    } catch {
+      // Invalid JSON, use empty
+    }
+
+    startJob({
+      jobId: job.id.toString(),
+      specId: Number(job.specId),
+      mainDomain: spec.mainDomain,
+      notarizeUrl: spec.notarizeUrl,
+      inputs,
+      promptInstructions: spec.promptInstructions,
+      outputSchema: spec.outputSchema,
+      bounty: formatBounty(job.bounty),
+      token: job.token === "0x0000000000000000000000000000000000000000" ? "ETH" : "ERC20",
+    });
   };
 
-  const totalAvailableJobs = mockApprovedSpecs.reduce(
-    (sum, spec) => sum + spec.availableJobs,
-    0
-  );
+  const isLoading = followedSpecsLoading || activeJobsLoading || openJobsLoading || specsLoading;
 
   return (
     <DashboardLayout role="worker">
@@ -203,11 +199,20 @@ export default function WorkerDashboard() {
               Active Tasks
             </h2>
             <span className="text-sm text-[var(--text-muted)]">
-              {mockActiveTasks.length}
+              {extensionConnected ? activeJobs.length : "-"}
             </span>
           </div>
           <div className="p-2">
-            {mockActiveTasks.length === 0 ? (
+            {!extensionConnected ? (
+              <ExtensionRequiredCard
+                variant="inline"
+                description="Install the extension to see and run active tasks."
+              />
+            ) : activeJobsLoading ? (
+              <div className="py-8 text-center text-[var(--text-muted)]">
+                Loading...
+              </div>
+            ) : activeJobs.length === 0 ? (
               <div className="py-8 text-center text-[var(--text-muted)]">
                 No active tasks
               </div>
@@ -220,7 +225,7 @@ export default function WorkerDashboard() {
                         Job ID
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                        Spec Domain
+                        Domain
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                         Status
@@ -231,23 +236,23 @@ export default function WorkerDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockActiveTasks.map((job) => (
+                    {activeJobs.map((job) => (
                       <tr
-                        key={job.id}
+                        key={job.jobId}
                         className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-2)] transition-colors duration-150"
                       >
                         <td className="py-3 px-4">
                           <span className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--text-primary)]">
-                            {truncateAddress(job.id)}
+                            {truncateAddress(job.jobId)}
                           </span>
                         </td>
                         <td className="py-3 px-4">
                           <span className="text-sm text-[var(--text-secondary)]">
-                            {job.specDomain}
+                            {job.mainDomain}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <WorkerJobStatusBadge status={job.status} />
+                          <ActiveTaskStatusBadge status={job.status} />
                         </td>
                         <td className="py-3 px-4 text-right">
                           <span className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--success)]">
@@ -261,13 +266,6 @@ export default function WorkerDashboard() {
               </div>
             )}
           </div>
-          {mockActiveTasks.length > 0 && (
-            <div className="px-6 py-3 border-t border-[var(--border)]">
-              <button className="text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors">
-                View History
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Approved Job Specs Section */}
@@ -277,11 +275,20 @@ export default function WorkerDashboard() {
               Approved Job Specs
             </h2>
             <span className="text-sm text-[var(--text-muted)]">
-              {mockApprovedSpecs.length} specs
+              {extensionConnected ? `${followedSpecs.length} specs` : "-"}
             </span>
           </div>
           <div className="p-2">
-            {mockApprovedSpecs.length === 0 ? (
+            {!extensionConnected ? (
+              <ExtensionRequiredCard
+                variant="inline"
+                description="Install the extension to approve and manage job specs."
+              />
+            ) : followedSpecsLoading ? (
+              <div className="py-8 text-center text-[var(--text-muted)]">
+                Loading...
+              </div>
+            ) : followedSpecs.length === 0 ? (
               <div className="py-8 text-center text-[var(--text-muted)]">
                 <p className="mb-4">You haven&apos;t approved any job specs yet</p>
                 <Button size="sm" onClick={() => router.push("/worker/jobSpecs")}>
@@ -305,10 +312,10 @@ export default function WorkerDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockApprovedSpecs.map((spec) => (
+                    {followedSpecs.map((spec) => (
                       <tr
-                        key={spec.id}
-                        onClick={() => router.push(`/worker/jobSpecs/${spec.id}/jobs`)}
+                        key={spec.specId}
+                        onClick={() => router.push(`/worker/jobSpecs/${spec.specId}/jobs`)}
                         className="border-b border-[var(--border)] last:border-b-0 cursor-pointer hover:bg-[var(--surface-2)] transition-colors duration-150"
                       >
                         <td className="py-3 px-4">
@@ -318,12 +325,12 @@ export default function WorkerDashboard() {
                         </td>
                         <td className="py-3 px-4">
                           <span className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--text-secondary)]">
-                            {spec.minPrice} {spec.token}
+                            {spec.minBounty} ETH
                           </span>
                         </td>
                         <td className="py-3 px-4">
                           <span className="text-sm text-[var(--accent)]">
-                            {spec.availableJobs} available
+                            {jobCountBySpec.get(spec.specId) || 0} available
                           </span>
                         </td>
                       </tr>
@@ -333,7 +340,7 @@ export default function WorkerDashboard() {
               </div>
             )}
           </div>
-          {mockApprovedSpecs.length > 0 && (
+          {extensionConnected && followedSpecs.length > 0 && (
             <div className="px-6 py-3 border-t border-[var(--border)]">
               <button
                 onClick={() => router.push("/worker/jobSpecs")}
@@ -352,13 +359,24 @@ export default function WorkerDashboard() {
               Available Jobs
             </h2>
             <span className="text-sm text-[var(--text-muted)]">
-              {totalAvailableJobs} matching
+              {availableJobs.length} matching
             </span>
           </div>
           <div className="p-2">
-            {mockAvailableJobs.length === 0 ? (
+            {!extensionConnected ? (
+              <ExtensionRequiredCard
+                variant="inline"
+                description="Install the extension to claim and complete jobs."
+              />
+            ) : openJobsLoading ? (
               <div className="py-8 text-center text-[var(--text-muted)]">
-                No jobs available for your approved specs
+                Loading jobs from blockchain...
+              </div>
+            ) : availableJobs.length === 0 ? (
+              <div className="py-8 text-center text-[var(--text-muted)]">
+                {followedSpecs.length === 0
+                  ? "Approve some job specs to see available jobs"
+                  : "No jobs available for your approved specs"}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -366,7 +384,7 @@ export default function WorkerDashboard() {
                   <thead>
                     <tr className="border-b border-[var(--border)]">
                       <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-                        Spec Domain
+                        Domain
                       </th>
                       <th className="text-right py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                         Bounty
@@ -380,49 +398,52 @@ export default function WorkerDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockAvailableJobs.map((job) => (
-                      <tr
-                        key={job.id}
-                        className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-2)] transition-colors duration-150"
-                      >
-                        <td className="py-3 px-4">
-                          <span className="text-sm text-[var(--text-primary)]">
-                            {job.specDomain}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--success)]">
-                            {job.bounty} {job.token}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-sm text-[var(--text-muted)]">
-                            {formatTimeAgo(job.createdAt)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Button
-                            size="sm"
-                            onClick={() => handleClaimJob(job.id)}
-                            disabled={claimingJobId === job.id}
-                          >
-                            {claimingJobId === job.id ? "..." : "Claim"}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {availableJobs.slice(0, 10).map((job) => {
+                      const spec = specMap.get(job.specId);
+                      return (
+                        <tr
+                          key={job.id.toString()}
+                          className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-2)] transition-colors duration-150"
+                        >
+                          <td className="py-3 px-4">
+                            <span className="text-sm text-[var(--text-primary)]">
+                              {spec?.mainDomain || "Unknown"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--success)]">
+                              {formatBounty(job.bounty)} ETH
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-sm text-[var(--text-muted)]">
+                              {formatTimeAgo(job.createdAt)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <Button
+                              size="sm"
+                              onClick={() => handleClaimJob(job)}
+                              disabled={isRunning}
+                            >
+                              {isRunning ? "Busy" : "Claim"}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
-          {mockAvailableJobs.length > 0 && (
+          {availableJobs.length > 10 && (
             <div className="px-6 py-3 border-t border-[var(--border)]">
               <button
                 onClick={() => router.push("/worker/jobSpecs")}
                 className="text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
               >
-                Browse All Jobs
+                View All {availableJobs.length} Jobs
               </button>
             </div>
           )}

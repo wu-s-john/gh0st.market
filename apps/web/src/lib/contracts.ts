@@ -1,18 +1,30 @@
 import { jobRegistryAbi } from "@/generated";
-import {
-  JOB_REGISTRY_ADDRESS,
-  DEPLOYMENT_BLOCK,
-  CHAIN_ID,
-} from "./contracts.generated";
+import { CHAIN_CONFIG, getChainConfigOrDefault } from "./contracts.config";
+import { getChainSettings } from "./settings";
 
-// Re-export generated values
-export { JOB_REGISTRY_ADDRESS, DEPLOYMENT_BLOCK, CHAIN_ID };
+/**
+ * Get contract address for a specific chain (from settings or config)
+ */
+export function getJobRegistryAddress(chainId: number): `0x${string}` {
+  return getChainSettings(chainId).jobRegistryAddress;
+}
 
-// Typed contract config for wagmi hooks
-export const jobRegistryConfig = {
-  address: JOB_REGISTRY_ADDRESS,
-  abi: jobRegistryAbi,
-} as const;
+/**
+ * Get deployment block for a specific chain (from settings or config)
+ */
+export function getDeploymentBlock(chainId: number): bigint {
+  return getChainSettings(chainId).deploymentBlock;
+}
+
+/**
+ * Get contract config for a specific chain
+ */
+export function getJobRegistryConfig(chainId: number) {
+  return {
+    address: getJobRegistryAddress(chainId),
+    abi: jobRegistryAbi,
+  } as const;
+}
 
 // Event signatures for log queries
 export const jobRegistryEvents = {

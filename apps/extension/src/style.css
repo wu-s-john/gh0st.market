@@ -1,9 +1,351 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   CSS Variables (matching gh0st.market theme)
+   ============================================ */
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-surface: #12121a;
+  --bg-surface-2: #1a1a24;
+  --border: #2a2a3a;
+  --border-hover: #3a3a4a;
+  --text-primary: #f5f5f7;
+  --text-secondary: #a0a0b0;
+  --text-muted: #606070;
+  --accent: #9333ea;
+  --accent-hover: #a855f7;
+  --success: #22c55e;
+  --error: #ef4444;
+}
+
+/* ============================================
+   Popup Container
+   ============================================ */
+.popup {
+  width: 320px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Outfit", sans-serif;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.popup-logo {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.popup-loading {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ============================================
+   Content (Worker Tab Closed State)
+   ============================================ */
+.popup-content {
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.popup-jobs-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.popup-jobs-count .count {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.popup-jobs-count .label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.popup-hint {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ============================================
+   Stats Row (Worker Tab Open State)
+   ============================================ */
+.popup-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.stat.current-job .stat-value {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.stat.current-job .stat-label {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================
+   Toggle Switch
+   ============================================ */
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  padding: 2px;
+}
+
+.toggle.off {
+  background: var(--bg-surface-2);
+}
+
+.toggle.on {
+  background: var(--accent);
+}
+
+.toggle-knob {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  transition: transform 0.2s;
+}
+
+.toggle.on .toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ============================================
+   Progress Bar
+   ============================================ */
+.popup-progress {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--bg-surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.progress-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   Actions
+   ============================================ */
+.popup-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+.popup-button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-family: "Outfit", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.popup-button.primary {
+  background: var(--accent);
+  color: white;
+}
+
+.popup-button.primary:hover {
+  background: var(--accent-hover);
+}
+
+.popup-button.secondary {
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.popup-button.secondary:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   Setup Screen
+   ============================================ */
+.setup-content {
+  padding: 20px 16px;
+}
+
+.setup-title {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.setup-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+}
+
+.form-input.error {
+  border-color: var(--error);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-error {
+  font-size: 11px;
+  color: var(--error);
+}
+
+.form-error-general {
+  padding: 10px;
+  background: var(--error);
+  color: white;
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* ============================================
+   Settings Button
+   ============================================ */
+.settings-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.settings-button:hover {
+  color: var(--text-primary);
+}
+
+.settings-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================
+   Content Script Styles
+   ============================================ */
 #plasmo-shadow-container {
   all: initial;
   box-sizing: border-box;
