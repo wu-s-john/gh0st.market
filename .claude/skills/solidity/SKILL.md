@@ -107,7 +107,28 @@ ffi = true
 ethereum_sepolia = "${ETH_SEPOLIA_RPC_URL}"
 ```
 
-### 2.2 Example contract: JobEscrow for the privacy job board
+### 2.2 Foundry CLI Tools
+
+Foundry includes four command-line tools:
+
+- **forge** - build, test, deploy contracts
+- **cast** - interact with contracts and perform RPC calls
+- **anvil** - local testnet node
+- **chisel** - Solidity REPL
+
+#### Quick Reference
+
+| Command        | Purpose                           |
+|----------------|-----------------------------------|
+| `forge build`  | Compile contracts                 |
+| `forge test`   | Run tests                         |
+| `forge script` | Deploy contracts                  |
+| `cast send`    | Write to contract (transaction)   |
+| `cast call`    | Read from contract (no gas)       |
+| `cast balance` | Check ETH balance                 |
+| `anvil`        | Run local node                    |
+
+### 2.3 Example contract: JobEscrow for the privacy job board
 
 Minimal shape (you'll adapt for RAILGUN integration):
 
@@ -193,7 +214,7 @@ You'll later adapt `payoutAddress` to be:
 - A RAILGUN unshield address for private payouts, or
 - A CDP Embedded Wallet / server wallet address.
 
-### 2.3 Deploy with Foundry to Ethereum Sepolia
+### 2.4 Deploy with Foundry to Ethereum Sepolia
 
 Create a simple deploy script `script/DeployJobEscrow.s.sol` and then:
 

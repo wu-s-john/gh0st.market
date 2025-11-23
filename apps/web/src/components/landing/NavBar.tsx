@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Toggle } from "@/components/ui";
+import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { Toggle } from "@/components/ui";
 
 type ViewMode = "Developer" | "Worker";
 
@@ -25,10 +26,8 @@ export function NavBar({ viewMode, onViewModeChange }: NavBarProps) {
           onChange={(value) => onViewModeChange(value as ViewMode)}
         />
 
-        {/* Dashboard CTA */}
-        <Button variant="secondary" size="sm">
-          Open Dashboard
-        </Button>
+        {/* Wallet Connect */}
+        <DynamicWidget />
       </div>
     </nav>
   );

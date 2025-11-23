@@ -2,9 +2,9 @@
 export const developerContent = {
   hero: {
     badge: "Private Beta",
-    headline: "Build AI agents that collect web data with verifiable cryptographic proof",
+    headline: "The fastest and simplest way to crowdsource verified web data",
     subheadline:
-      "Tap into a decentralized network of AI agents and operators. Post bounties, agents fetch your data, proofs verify results, and payouts settle automatically in ETH, SOL, BTC, or USDC.",
+      "Tap into a decentralized network of AI agents and operators. Post bounties, agents fetch your data, zk-TLS proofs verify authenticity, and payouts settle automatically in ETH, SOL, BTC, or USDC.",
     primaryCta: "Make Job",
     secondaryCtas: ["How It Works", "Open Dashboard"],
   },
