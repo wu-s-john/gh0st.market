@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Outfit } from "next/font/google";
 import { Web3Provider } from "@/components/providers/Web3Provider";
+import { ToastProvider } from "@/components/providers/ToastProvider";
 import "./globals.css";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -30,7 +31,9 @@ export default function RootLayout(props: {
       <body
         className={`${jetbrainsMono.variable} ${outfit.variable} antialiased`}
       >
-        <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>
+          <ToastProvider>{children}</ToastProvider>
+        </Web3Provider>
       </body>
     </html>
   );

@@ -1,95 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { parseEther } from "viem";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { JobSpecCard } from "@/components/cards/JobSpecCard";
 import { JobSpec } from "@/components/tables/JobSpecsTable";
 import { CreateSpecModal, CreateJobSpecParams } from "@/components/modals/CreateSpecModal";
 import { CreateJobModal, CreateJobParams } from "@/components/modals/CreateJobModal";
 import { Button } from "@/components/ui";
+import { useAllJobSpecs } from "@/hooks/useJobRegistry";
+import { useCreateJobSpec, useCreateJob } from "@/hooks/useJobRegistryWrite";
+import { useTransactionToast } from "@/hooks/useTransactionToast";
+import { formatJobSpecForUI } from "@/lib/formatters";
 
-// Mock data - all specs in the ecosystem
-const mockAllSpecs: JobSpec[] = [
-  {
-    id: "1",
-    mainDomain: "crunchbase.com",
-    notarizeUrl: "https://crunchbase.com/organization/{{orgSlug}}",
-    description: "Fetch Crunchbase organization profiles with funding and employee data",
-    promptInstructions: "Navigate to the organization page. Extract the company name from the header. Find the funding total in the Financials section. Get employee count from the About section. Return all fields as specified in the output schema.",
-    creator: "0x7f3a8b2c9d4e5f6a",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 7,
-    active: true,
-    jobCount: 47,
-  },
-  {
-    id: "2",
-    mainDomain: "linkedin.com",
-    notarizeUrl: "https://linkedin.com/company/{{companySlug}}",
-    description: "Get LinkedIn company profiles with employee count and headquarters",
-    promptInstructions: "Navigate to the company page. Extract employee count, headquarters location, industry, and recent posts from the company profile. Ensure all data is current.",
-    creator: "0x2b1c3d4e5f6a7b8c",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 5,
-    active: true,
-    jobCount: 23,
-  },
-  {
-    id: "3",
-    mainDomain: "salesforce.com",
-    notarizeUrl: "https://{{instance}}.salesforce.com/lightning/o/Dashboard/{{dashboardId}}",
-    description: "Extract Salesforce dashboard metrics and chart data",
-    promptInstructions: "Login to the Salesforce instance. Navigate to the dashboard URL and capture all visible metrics and charts data. Handle authentication if required.",
-    creator: "0x9c4d5e6f7a8b9c0d",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
-    active: true,
-    jobCount: 12,
-  },
-  {
-    id: "4",
-    mainDomain: "github.com",
-    notarizeUrl: "https://github.com/{{owner}}/{{repo}}",
-    description: "Fetch GitHub repository stats including stars, forks, and contributors",
-    promptInstructions: "Navigate to the repository page. Extract stars, forks, contributors count, and recent commit activity. Also extract README content and repository metadata.",
-    creator: "0x1a2b3c4d5e6f7a8b",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
-    active: true,
-    jobCount: 8,
-  },
-  {
-    id: "5",
-    mainDomain: "pitchbook.com",
-    notarizeUrl: "https://pitchbook.com/profiles/company/{{companyId}}",
-    description: "Retrieve PitchBook company valuation and funding data",
-    promptInstructions: "Navigate to the company profile. Extract valuation data, funding rounds, and investor information. Requires authenticated session.",
-    creator: "0x3c4d5e6f7a8b9c0d",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    active: false,
-    jobCount: 3,
-  },
-];
+// Token symbol to address mapping
+const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
+  ETH: "0x0000000000000000000000000000000000000000",
+  // Add more tokens as needed (USDC, etc.)
+  USDC: "0x0000000000000000000000000000000000000000", // TODO: Add real USDC address
+};
 
 export default function BrowseSpecsPage() {
   const router = useRouter();
   const [isCreateSpecModalOpen, setIsCreateSpecModalOpen] = useState(false);
   const [isCreateJobModalOpen, setIsCreateJobModalOpen] = useState(false);
   const [selectedSpec, setSelectedSpec] = useState<JobSpec | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch all specs from blockchain
+  const {
+    data: allSpecs,
+    isLoading: isLoadingSpecs,
+    refetch: refetchSpecs,
+  } = useAllJobSpecs();
+
+  // Create spec hook
+  const {
+    createJobSpec,
+    isPending: isCreatingSpec,
+    isConfirming: isConfirmingSpec,
+    isSuccess: isSpecCreated,
+    error: createSpecError,
+  } = useCreateJobSpec();
+
+  // Create job hook
+  const {
+    createJob,
+    isPending: isCreatingJob,
+    isConfirming: isConfirmingJob,
+    isSuccess: isJobCreated,
+    error: createJobError,
+  } = useCreateJob();
+
+  // Transaction toast notifications
+  useTransactionToast(
+    { isPending: isCreatingSpec, isConfirming: isConfirmingSpec, isSuccess: isSpecCreated, error: createSpecError },
+    { successMessage: "Job spec created!" }
+  );
+  useTransactionToast(
+    { isPending: isCreatingJob, isConfirming: isConfirmingJob, isSuccess: isJobCreated, error: createJobError },
+    { successMessage: "Job created!" }
+  );
+
+  // Refetch when spec is created
+  useEffect(() => {
+    if (isSpecCreated) {
+      refetchSpecs();
+      setIsCreateSpecModalOpen(false);
+    }
+  }, [isSpecCreated, refetchSpecs]);
+
+  // Close job modal when job is created
+  useEffect(() => {
+    if (isJobCreated) {
+      setIsCreateJobModalOpen(false);
+      setSelectedSpec(null);
+    }
+  }, [isJobCreated]);
+
+  // Transform blockchain data to UI format
+  const formattedSpecs: JobSpec[] = useMemo(() => {
+    if (!allSpecs) return [];
+    // TODO: Get job counts per spec from events
+    return allSpecs.map((spec) => formatJobSpecForUI(spec, 0));
+  }, [allSpecs]);
 
   const handleCreateSpec = async (params: CreateJobSpecParams) => {
-    setIsSubmitting(true);
-    console.log("Creating spec:", params);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
-    setIsCreateSpecModalOpen(false);
+    createJobSpec({
+      mainDomain: params.mainDomain,
+      notarizeUrl: params.notarizeUrl,
+      description: params.description,
+      promptInstructions: params.promptInstructions,
+      outputSchema: params.outputSchema || "",
+      inputSchema: params.inputSchema || "",
+      validationRules: params.validationRules || "",
+    });
   };
 
   const handleCreateJob = async (params: CreateJobParams) => {
-    setIsSubmitting(true);
-    console.log("Creating job:", params);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
-    setIsCreateJobModalOpen(false);
-    setSelectedSpec(null);
+    const tokenAddress = TOKEN_ADDRESSES[params.token] || TOKEN_ADDRESSES.ETH;
+    const bountyWei = parseEther(params.bounty);
+
+    createJob({
+      specId: BigInt(params.specId),
+      inputs: params.inputs,
+      token: tokenAddress,
+      bounty: bountyWei,
+      requesterContact: params.requesterContact || "",
+    });
   };
 
   const handleUseSpec = (spec: JobSpec) => {
@@ -100,6 +118,9 @@ export default function BrowseSpecsPage() {
   const handleSpecClick = (specId: string) => {
     router.push(`/requestor/jobSpecs/${specId}/jobs`);
   };
+
+  const isSubmittingSpec = isCreatingSpec || isConfirmingSpec;
+  const isSubmittingJob = isCreatingJob || isConfirmingJob;
 
   return (
     <DashboardLayout role="requestor">
@@ -118,20 +139,29 @@ export default function BrowseSpecsPage() {
         </Button>
       </div>
 
+      {/* Loading State */}
+      {isLoadingSpecs && (
+        <div className="text-center py-12">
+          <p className="text-[var(--text-muted)]">Loading specs...</p>
+        </div>
+      )}
+
       {/* Specs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {mockAllSpecs.map((spec) => (
-          <JobSpecCard
-            key={spec.id}
-            spec={spec}
-            onUseSpec={handleUseSpec}
-            onClick={handleSpecClick}
-          />
-        ))}
-      </div>
+      {!isLoadingSpecs && formattedSpecs.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {formattedSpecs.map((spec) => (
+            <JobSpecCard
+              key={spec.id}
+              spec={spec}
+              onUseSpec={handleUseSpec}
+              onClick={handleSpecClick}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
-      {mockAllSpecs.length === 0 && (
+      {!isLoadingSpecs && formattedSpecs.length === 0 && (
         <div className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
             No job specs found in the ecosystem yet.
@@ -147,7 +177,7 @@ export default function BrowseSpecsPage() {
         isOpen={isCreateSpecModalOpen}
         onClose={() => setIsCreateSpecModalOpen(false)}
         onSubmit={handleCreateSpec}
-        isSubmitting={isSubmitting}
+        isSubmitting={isSubmittingSpec}
       />
 
       {/* Create Job Modal */}
@@ -159,7 +189,7 @@ export default function BrowseSpecsPage() {
         }}
         onSubmit={handleCreateJob}
         spec={selectedSpec}
-        isSubmitting={isSubmitting}
+        isSubmitting={isSubmittingJob}
       />
     </DashboardLayout>
   );

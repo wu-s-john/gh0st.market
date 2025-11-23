@@ -10,13 +10,19 @@ export function RoleSelection() {
     <div className="min-h-screen bg-[var(--background)]">
       {/* Top Bar with Wallet */}
       <div className="border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="px-6 h-16 flex items-center">
+          {/* Logo - Far Left */}
           <a
             href="/"
             className="font-[family-name:var(--font-jetbrains-mono)] text-lg font-bold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors duration-150"
           >
             gh0st.market
           </a>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Wallet - Far Right */}
           <DynamicWidget />
         </div>
       </div>

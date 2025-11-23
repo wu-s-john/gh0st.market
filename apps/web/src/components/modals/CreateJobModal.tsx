@@ -151,6 +151,52 @@ export function CreateJobModal({
               className="w-full px-3 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-md font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors resize-none"
               disabled={isSubmitting}
             />
+            {(() => {
+              // Try to parse inputSchema for field types
+              let schemaFields: { name: string; type: string }[] = [];
+
+              if (spec.inputSchema && spec.inputSchema !== "{}") {
+                try {
+                  const schema = JSON.parse(spec.inputSchema);
+                  if (schema.properties) {
+                    schemaFields = Object.entries(schema.properties).map(([name, prop]) => ({
+                      name,
+                      type: (prop as { type?: string }).type || "string",
+                    }));
+                  }
+                } catch {
+                  // Invalid JSON, fall through to URL placeholders
+                }
+              }
+
+              // Fall back to URL placeholders if no schema fields found
+              if (schemaFields.length === 0) {
+                const placeholders = spec.notarizeUrl.match(/\{\{(\w+)\}\}/g);
+                if (placeholders && placeholders.length > 0) {
+                  schemaFields = placeholders.map(p => ({
+                    name: p.replace(/[{}]/g, ""),
+                    type: "string",
+                  }));
+                }
+              }
+
+              if (schemaFields.length === 0) return null;
+
+              return (
+                <div className="mt-2 p-2 bg-[var(--background)] border border-[var(--border)] rounded text-xs">
+                  <span className="text-[var(--text-muted)]">Expected fields:</span>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {schemaFields.map(({ name, type }) => (
+                      <span key={name} className="inline-flex items-center gap-1">
+                        <code className="font-[family-name:var(--font-jetbrains-mono)] text-[var(--text-primary)]">{name}</code>
+                        <span className="text-[var(--text-muted)]">:</span>
+                        <span className="text-[var(--info)]">{type}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Bounty */}

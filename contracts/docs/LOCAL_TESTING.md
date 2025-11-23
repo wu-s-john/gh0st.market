@@ -50,11 +50,11 @@ export REGISTRY=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 
 ## Step 3: Create a JobSpec
 
-Create a job specification template:
+Create a job specification template (7 fields: mainDomain, notarizeUrl, description, promptInstructions, outputSchema, inputSchema, validationRules):
 
 ```bash
-cast send $REGISTRY "createJobSpec((string,string,string,string,string))" \
-  '("crunchbase.com","Fetch funding data","{}","{}","")' \
+cast send $REGISTRY "createJobSpec((string,string,string,string,string,string,string))" \
+  '("crunchbase.com","https://crunchbase.com/org/{{company}}","Fetch funding data","Extract company info","{}","{}","")' \
   --rpc-url $RPC_URL \
   --private-key $PRIVATE_KEY
 ```
@@ -150,10 +150,13 @@ Stop Anvil (Ctrl+C) and run `just eth-dev` again. All state is reset.
 
 | Command | Description |
 |---------|-------------|
-| `just eth-dev` | Start Anvil + deploy all contracts |
+| `just eth-dev` | Start Anvil + deploy + generate wagmi bindings |
+| `just eth-stop` | Stop running Anvil process |
 | `just eth-build` | Build contracts |
 | `just eth-test` | Run all tests |
 | `just eth-deploy-local` | Deploy to running Anvil |
 | `just eth-deploy-sepolia` | Deploy to Sepolia testnet |
+| `just eth-fund <address>` | Fund wallet with 100 ETH (local only) |
 | `just eth-clean` | Clean build artifacts |
 | `just eth-fmt` | Format Solidity files |
+| `just generate-bindings` | Regenerate wagmi TypeScript bindings |

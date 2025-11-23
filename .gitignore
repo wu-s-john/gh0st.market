@@ -53,6 +53,9 @@ coverage/
 cache/
 broadcast/
 
+# Generated contract config (run `just eth-deploy-local` to generate)
+apps/web/src/lib/contracts.generated.ts
+
 # Vercel
 .vercel
 

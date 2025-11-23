@@ -1,85 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { parseEther } from "viem";
 import JsonView from "@uiw/react-json-view";
 import { darkTheme } from "@uiw/react-json-view/dark";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { JobsTable, Job } from "@/components/tables/JobsTable";
 import { CreateJobModal, CreateJobParams } from "@/components/modals/CreateJobModal";
 import { Button } from "@/components/ui";
+import { useJobSpec, useJobsForSpec } from "@/hooks/useJobRegistry";
+import { useCreateJob } from "@/hooks/useJobRegistryWrite";
+import { useTransactionToast } from "@/hooks/useTransactionToast";
+import { formatJobForUI } from "@/lib/formatters";
 
-// Extended spec type with full details
-interface FullJobSpec {
-  id: string;
-  mainDomain: string;
-  notarizeUrl: string;
-  description: string;
-  promptInstructions: string;
-  inputSchema: string;
-  outputSchema: string;
-  validationRules: string;
-  creator: string;
-  createdAt: number;
-  active: boolean;
-  jobCount: number;
-}
-
-// Mock data
-const mockSpecDetails: Record<string, FullJobSpec> = {
-  "1": {
-    id: "1",
-    mainDomain: "crunchbase.com",
-    notarizeUrl: "https://crunchbase.com/organization/{{orgSlug}}",
-    description: "Fetch Crunchbase organization profiles with funding and employee data",
-    promptInstructions: "Navigate to the organization page. Extract the company name from the header. Find the funding total in the Financials section. Get employee count from the About section. The data should be current and reflect the latest information available on the profile.",
-    inputSchema: JSON.stringify({ orgSlug: "string" }, null, 2),
-    outputSchema: JSON.stringify({
-      name: "string",
-      description: "string",
-      funding: "number",
-      employees: "number",
-      founded: "string",
-      headquarters: "string",
-    }, null, 2),
-    validationRules: "Output must contain valid JSON matching the output schema. All required fields must be present. Funding amount should be in USD.",
-    creator: "0x7f3a8b2c9d4e5f6a1b2c3d4e5f6a7b8c",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 7,
-    active: true,
-    jobCount: 47,
-  },
-};
-
-const mockJobsForSpec: Record<string, Job[]> = {
-  "1": [
-    {
-      id: "0x7f3a8b2c9d4e5f6a1b2c3d4e5f6a7b8c",
-      specId: "1",
-      targetDomain: "crunchbase.com",
-      status: "Open",
-      bounty: "0.50",
-      token: "USDC",
-      createdAt: Date.now() - 1000 * 60 * 5,
-    },
-    {
-      id: "0x2b1c3d4e5f6a7b8c9d0e1f2a3b4c5d6e",
-      specId: "1",
-      targetDomain: "crunchbase.com",
-      status: "Completed",
-      bounty: "1.20",
-      token: "USDC",
-      createdAt: Date.now() - 1000 * 60 * 60,
-    },
-    {
-      id: "0x9c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-      specId: "1",
-      targetDomain: "crunchbase.com",
-      status: "Open",
-      bounty: "2.00",
-      token: "ETH",
-      createdAt: Date.now() - 1000 * 60 * 120,
-    },
-  ],
+// Token symbol to address mapping
+const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
+  ETH: "0x0000000000000000000000000000000000000000",
+  USDC: "0x0000000000000000000000000000000000000000", // TODO: Add real USDC address
 };
 
 function truncateAddress(address: string): string {
@@ -114,44 +52,125 @@ export default function SpecDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const specId = params.specId as string;
+  const specIdBigInt = BigInt(specId);
 
   const [isCreateJobModalOpen, setIsCreateJobModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get spec details (mock)
-  const spec = mockSpecDetails[specId] || mockSpecDetails["1"];
-  const jobs = mockJobsForSpec[specId] || mockJobsForSpec["1"];
+  // Fetch spec and jobs from blockchain
+  const {
+    data: specData,
+    isLoading: isLoadingSpec,
+  } = useJobSpec(specIdBigInt);
 
-  const handleCreateJob = async (params: CreateJobParams) => {
-    setIsSubmitting(true);
-    console.log("Creating job:", params);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
-    setIsCreateJobModalOpen(false);
+  const {
+    data: jobsData,
+    isLoading: isLoadingJobs,
+    refetch: refetchJobs,
+  } = useJobsForSpec(specIdBigInt);
+
+  // Create job hook
+  const {
+    createJob,
+    isPending: isCreatingJob,
+    isConfirming: isConfirmingJob,
+    isSuccess: isJobCreated,
+    error: createJobError,
+  } = useCreateJob();
+
+  // Transaction toast notification
+  useTransactionToast(
+    { isPending: isCreatingJob, isConfirming: isConfirmingJob, isSuccess: isJobCreated, error: createJobError },
+    { successMessage: "Job created!" }
+  );
+
+  // Refetch jobs when a new job is created
+  useEffect(() => {
+    if (isJobCreated) {
+      refetchJobs();
+      setIsCreateJobModalOpen(false);
+    }
+  }, [isJobCreated, refetchJobs]);
+
+  // Transform jobs data for UI
+  const formattedJobs: Job[] = useMemo(() => {
+    if (!jobsData || !specData) return [];
+    return jobsData.map((job) => formatJobForUI(job, specData.mainDomain));
+  }, [jobsData, specData]);
+
+  const handleCreateJob = async (jobParams: CreateJobParams) => {
+    const tokenAddress = TOKEN_ADDRESSES[jobParams.token] || TOKEN_ADDRESSES.ETH;
+    const bountyWei = parseEther(jobParams.bounty);
+
+    createJob({
+      specId: specIdBigInt,
+      inputs: jobParams.inputs,
+      token: tokenAddress,
+      bounty: bountyWei,
+      requesterContact: jobParams.requesterContact || "",
+    });
   };
 
   // Parse JSON schemas for display
   let inputSchemaObj = {};
   let outputSchemaObj = {};
-  try {
-    inputSchemaObj = JSON.parse(spec.inputSchema);
-    outputSchemaObj = JSON.parse(spec.outputSchema);
-  } catch {
-    // Keep empty objects if parsing fails
+  if (specData) {
+    try {
+      inputSchemaObj = JSON.parse(specData.inputSchema);
+    } catch {
+      // Keep empty object if parsing fails
+    }
+    try {
+      outputSchemaObj = JSON.parse(specData.outputSchema);
+    } catch {
+      // Keep empty object if parsing fails
+    }
   }
 
+  const isLoading = isLoadingSpec || isLoadingJobs;
+  const isSubmitting = isCreatingJob || isConfirmingJob;
+
   // Convert to JobSpec type for modal
-  const specForModal = {
-    id: spec.id,
-    mainDomain: spec.mainDomain,
-    notarizeUrl: spec.notarizeUrl,
-    description: spec.description,
-    promptInstructions: spec.promptInstructions,
-    creator: spec.creator,
-    createdAt: spec.createdAt,
-    active: spec.active,
-    jobCount: spec.jobCount,
-  };
+  const specForModal = specData ? {
+    id: specId,
+    mainDomain: specData.mainDomain,
+    notarizeUrl: specData.notarizeUrl,
+    description: specData.description,
+    promptInstructions: specData.promptInstructions,
+    inputSchema: specData.inputSchema,
+    outputSchema: specData.outputSchema,
+    creator: specData.creator,
+    createdAt: Number(specData.createdAt) * 1000,
+    active: specData.active,
+    jobCount: formattedJobs.length,
+  } : null;
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <DashboardLayout role="requestor">
+        <div className="text-center py-12">
+          <p className="text-[var(--text-muted)]">Loading spec details...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Not found state
+  if (!specData) {
+    return (
+      <DashboardLayout role="requestor">
+        <div className="text-center py-12">
+          <p className="text-[var(--text-muted)]">Spec not found</p>
+          <button
+            onClick={() => router.push("/requestor/jobSpecs")}
+            className="mt-4 text-[var(--accent)] hover:text-[var(--accent-hover)]"
+          >
+            Back to Browse Specs
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="requestor">
@@ -182,23 +201,23 @@ export default function SpecDetailsPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="font-[family-name:var(--font-jetbrains-mono)] text-2xl font-bold text-[var(--text-primary)] mb-2">
-              {spec.mainDomain}
+              {specData.mainDomain}
             </h1>
             <p className="text-[var(--text-secondary)] mb-2">
-              {spec.description}
+              {specData.description}
             </p>
             <div className="flex items-center gap-4 text-sm text-[var(--text-muted)]">
-              <span>Created by: {truncateAddress(spec.creator)}</span>
-              <span>Created: {formatDate(spec.createdAt)}</span>
+              <span>Created by: {truncateAddress(specData.creator)}</span>
+              <span>Created: {formatDate(Number(specData.createdAt) * 1000)}</span>
             </div>
           </div>
           <span
             className={`inline-flex items-center gap-1.5 text-sm ${
-              spec.active ? "text-[var(--success)]" : "text-[var(--text-muted)]"
+              specData.active ? "text-[var(--success)]" : "text-[var(--text-muted)]"
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-current" />
-            {spec.active ? "Active" : "Inactive"}
+            {specData.active ? "Active" : "Inactive"}
           </span>
         </div>
 
@@ -209,7 +228,7 @@ export default function SpecDetailsPage() {
           </h3>
           <div className="p-3 bg-[var(--background)] border border-[var(--border)] rounded-md">
             <code className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--info)]">
-              {spec.notarizeUrl}
+              {specData.notarizeUrl}
             </code>
           </div>
         </div>
@@ -221,7 +240,7 @@ export default function SpecDetailsPage() {
           </h3>
           <div className="p-4 bg-[var(--background)] border border-[var(--border)] rounded-md">
             <p className="text-[var(--text-secondary)] leading-relaxed">
-              {spec.promptInstructions}
+              {specData.promptInstructions}
             </p>
           </div>
         </div>
@@ -260,14 +279,14 @@ export default function SpecDetailsPage() {
         </div>
 
         {/* Validation Rules */}
-        {spec.validationRules && (
+        {specData.validationRules && (
           <div>
             <h3 className="text-sm font-medium text-[var(--text-primary)] mb-2">
               Validation Rules
             </h3>
             <div className="p-4 bg-[var(--background)] border border-[var(--border)] rounded-md">
               <p className="text-[var(--text-secondary)] text-sm">
-                {spec.validationRules}
+                {specData.validationRules}
               </p>
             </div>
           </div>
@@ -278,7 +297,7 @@ export default function SpecDetailsPage() {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg">
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
           <h2 className="font-[family-name:var(--font-jetbrains-mono)] text-lg font-semibold text-[var(--text-primary)]">
-            Jobs ({jobs.length})
+            Jobs ({formattedJobs.length})
           </h2>
           <Button size="sm" onClick={() => setIsCreateJobModalOpen(true)}>
             + Create Job
@@ -286,7 +305,7 @@ export default function SpecDetailsPage() {
         </div>
         <div className="p-2">
           <JobsTable
-            jobs={jobs}
+            jobs={formattedJobs}
             emptyMessage="No jobs created for this spec yet"
           />
         </div>

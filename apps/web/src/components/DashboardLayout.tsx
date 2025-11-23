@@ -19,6 +19,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isRoleChanging, setIsRoleChanging] = useState(false);
 
   // Redirect to home if not connected (wait for SDK to load first)
   useEffect(() => {
@@ -26,6 +27,11 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       router.push("/");
     }
   }, [primaryWallet, sdkHasLoaded, router]);
+
+  // Reset loading state when pathname changes (navigation complete)
+  useEffect(() => {
+    setIsRoleChanging(false);
+  }, [pathname]);
 
   // Wait for SDK to initialize before rendering
   if (!sdkHasLoaded) {
@@ -39,6 +45,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const handleRoleChange = (newRole: string) => {
     const targetRole = newRole.toLowerCase() as Role;
     if (targetRole !== role) {
+      setIsRoleChanging(true);
       const newPath = getEquivalentPath(pathname, targetRole);
       router.push(newPath);
     }
@@ -64,6 +71,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             options={["Requestor", "Worker"]}
             value={toggleValue}
             onChange={handleRoleChange}
+            isLoading={isRoleChanging}
           />
 
           {/* Wallet */}
@@ -116,6 +124,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         currentPath={pathname}
         onRoleChange={handleRoleChange}
         currentRoleValue={toggleValue}
+        isRoleChanging={isRoleChanging}
       />
 
       {/* Main Layout */}

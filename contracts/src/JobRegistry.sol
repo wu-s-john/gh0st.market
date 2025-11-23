@@ -36,6 +36,7 @@ contract JobRegistry is IJobRegistry, ReentrancyGuard {
     error InvalidBounty();
     error InvalidPaymentAddress();
     error InvalidSpec();
+    error InvalidRange();
     error SpecNotActive();
     error NotSpecCreator();
     error JobNotOpen();
@@ -193,5 +194,37 @@ contract JobRegistry is IJobRegistry, ReentrancyGuard {
     /// @inheritdoc IJobRegistry
     function getJobCount() external view override returns (uint256) {
         return _nextJobId;
+    }
+
+    /// @inheritdoc IJobRegistry
+    function getJobSpecsRange(uint256 from, uint256 to)
+        external
+        view
+        override
+        returns (JobSpec[] memory specs)
+    {
+        if (from >= to || to > _nextSpecId) revert InvalidRange();
+
+        uint256 length = to - from;
+        specs = new JobSpec[](length);
+        for (uint256 i = 0; i < length; i++) {
+            specs[i] = _specs[from + i];
+        }
+    }
+
+    /// @inheritdoc IJobRegistry
+    function getJobsRange(uint256 from, uint256 to)
+        external
+        view
+        override
+        returns (Job[] memory jobs)
+    {
+        if (from >= to || to > _nextJobId) revert InvalidRange();
+
+        uint256 length = to - from;
+        jobs = new Job[](length);
+        for (uint256 i = 0; i < length; i++) {
+            jobs[i] = _jobs[from + i];
+        }
     }
 }

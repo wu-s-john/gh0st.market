@@ -80,6 +80,18 @@ interface IJobRegistry {
     /// @notice Get total number of jobs
     function getJobCount() external view returns (uint256);
 
+    /// @notice Get a range of job specs (for batch fetching)
+    /// @param from Start index (inclusive)
+    /// @param to End index (exclusive)
+    /// @return specs Array of job specs in the range
+    function getJobSpecsRange(uint256 from, uint256 to) external view returns (JobSpec[] memory specs);
+
+    /// @notice Get a range of jobs (for batch fetching)
+    /// @param from Start index (inclusive)
+    /// @param to End index (exclusive)
+    /// @return jobs Array of jobs in the range
+    function getJobsRange(uint256 from, uint256 to) external view returns (Job[] memory jobs);
+
     /// @notice Get the proof verifier contract
     function proofVerifier() external view returns (IProofVerifier);
 }

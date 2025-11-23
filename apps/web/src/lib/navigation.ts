@@ -29,11 +29,11 @@ export function getRoleFromPath(path: string): Role | null {
 export interface NavItem {
   label: string;
   href: string;
-  icon: "dashboard" | "specs";
+  icon: "dashboard" | "specs" | "extension";
 }
 
 export function getNavItems(role: Role): NavItem[] {
-  return [
+  const baseItems: NavItem[] = [
     {
       label: "Dashboard",
       href: `/${role}`,
@@ -45,17 +45,33 @@ export function getNavItems(role: Role): NavItem[] {
       icon: "specs",
     },
   ];
+
+  // Worker gets an additional extension page in nav
+  if (role === "worker") {
+    baseItems.push({
+      label: "Extension",
+      href: "/worker/extension",
+      icon: "extension",
+    });
+  }
+
+  return baseItems;
 }
 
 /**
  * Check if a nav item is active based on current path
  */
 export function isNavItemActive(itemHref: string, currentPath: string): boolean {
-  // Exact match for dashboard
+  // Exact match for dashboard and extension
   if (itemHref === currentPath) return true;
 
   // For Browse Specs, match if path starts with jobSpecs
   if (itemHref.endsWith("/jobSpecs") && currentPath.includes("/jobSpecs")) {
+    return true;
+  }
+
+  // For Extension, match extension path
+  if (itemHref.endsWith("/extension") && currentPath.includes("/extension")) {
     return true;
   }
 

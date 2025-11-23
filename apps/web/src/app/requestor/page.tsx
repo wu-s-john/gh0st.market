@@ -1,105 +1,130 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { JobsTable, Job } from "@/components/tables/JobsTable";
 import { JobSpecsTable, JobSpec } from "@/components/tables/JobSpecsTable";
 import { CreateSpecModal, CreateJobSpecParams } from "@/components/modals/CreateSpecModal";
 import { Button } from "@/components/ui";
-
-// Mock data for development
-const mockJobs: Job[] = [
-  {
-    id: "0x7f3a8b2c9d4e5f6a1b2c3d4e5f6a7b8c",
-    specId: "1",
-    targetDomain: "crunchbase.com",
-    status: "Open",
-    bounty: "0.50",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 5,
-  },
-  {
-    id: "0x2b1c3d4e5f6a7b8c9d0e1f2a3b4c5d6e",
-    specId: "2",
-    targetDomain: "linkedin.com",
-    status: "Completed",
-    bounty: "1.20",
-    token: "USDC",
-    createdAt: Date.now() - 1000 * 60 * 60,
-  },
-  {
-    id: "0x9c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-    specId: "1",
-    targetDomain: "crunchbase.com",
-    status: "Open",
-    bounty: "2.00",
-    token: "ETH",
-    createdAt: Date.now() - 1000 * 60 * 120,
-  },
-];
-
-const mockSpecs: JobSpec[] = [
-  {
-    id: "1",
-    mainDomain: "crunchbase.com",
-    notarizeUrl: "https://crunchbase.com/organization/{{orgSlug}}",
-    description: "Fetch Crunchbase organization profiles with funding and employee data",
-    promptInstructions: "Navigate to the organization page. Extract the company name from the header. Find the funding total in the Financials section. Get employee count from the About section.",
-    creator: "0x7f3a8b2c9d4e5f6a",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 7,
-    active: true,
-    jobCount: 12,
-  },
-  {
-    id: "2",
-    mainDomain: "linkedin.com",
-    notarizeUrl: "https://linkedin.com/company/{{companySlug}}",
-    description: "Get LinkedIn company profiles with employee count and headquarters",
-    promptInstructions: "Navigate to the company page. Extract employee count, headquarters location, industry, and recent posts from the company profile.",
-    creator: "0x7f3a8b2c9d4e5f6a",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
-    active: true,
-    jobCount: 5,
-  },
-  {
-    id: "3",
-    mainDomain: "salesforce.com",
-    notarizeUrl: "https://{{instance}}.salesforce.com/lightning/o/Dashboard/{{dashboardId}}",
-    description: "Extract Salesforce dashboard metrics and chart data",
-    promptInstructions: "Login to the Salesforce instance. Navigate to the dashboard URL and capture all visible metrics and charts data.",
-    creator: "0x7f3a8b2c9d4e5f6a",
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    active: false,
-    jobCount: 0,
-  },
-];
+import { useUserJobSpecs, useUserJobs } from "@/hooks/useJobRegistry";
+import { useCreateJobSpec } from "@/hooks/useJobRegistryWrite";
+import { useTransactionToast } from "@/hooks/useTransactionToast";
+import { formatJobForUI, formatJobSpecForUI } from "@/lib/formatters";
 
 export default function RequestorDashboard() {
   const router = useRouter();
+  const { address, isConnected } = useAccount();
   const [isCreateSpecModalOpen, setIsCreateSpecModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch user's job specs and jobs from blockchain
+  const {
+    data: userSpecs,
+    isLoading: isLoadingSpecs,
+    refetch: refetchSpecs,
+  } = useUserJobSpecs(address);
+
+  const {
+    data: userJobs,
+    isLoading: isLoadingJobs,
+    refetch: refetchJobs,
+  } = useUserJobs(address);
+
+  // Create job spec hook
+  const {
+    createJobSpec,
+    isPending: isCreatingSpec,
+    isConfirming: isConfirmingSpec,
+    isSuccess: isSpecCreated,
+    error: createSpecError,
+  } = useCreateJobSpec();
+
+  // Transaction toast notifications
+  useTransactionToast(
+    { isPending: isCreatingSpec, isConfirming: isConfirmingSpec, isSuccess: isSpecCreated, error: createSpecError },
+    { successMessage: "Job spec created!" }
+  );
+
+  // Refetch data when spec is created successfully
+  useEffect(() => {
+    if (isSpecCreated) {
+      refetchSpecs();
+      setIsCreateSpecModalOpen(false);
+    }
+  }, [isSpecCreated, refetchSpecs]);
+
+  // Transform blockchain data to UI format
+  const formattedJobs: Job[] = useMemo(() => {
+    if (!userJobs || !userSpecs) return [];
+
+    // Create a map of specId -> mainDomain for quick lookup
+    const specDomainMap = new Map<string, string>();
+    userSpecs.forEach((spec) => {
+      specDomainMap.set(spec.id.toString(), spec.mainDomain);
+    });
+
+    return userJobs.map((job) => {
+      const mainDomain = specDomainMap.get(job.specId.toString());
+      return formatJobForUI(job, mainDomain);
+    });
+  }, [userJobs, userSpecs]);
+
+  const formattedSpecs: JobSpec[] = useMemo(() => {
+    if (!userSpecs || !userJobs) return [];
+
+    // Count jobs per spec
+    const jobCountMap = new Map<string, number>();
+    userJobs.forEach((job) => {
+      const specId = job.specId.toString();
+      jobCountMap.set(specId, (jobCountMap.get(specId) || 0) + 1);
+    });
+
+    return userSpecs.map((spec) => {
+      const jobCount = jobCountMap.get(spec.id.toString()) || 0;
+      return formatJobSpecForUI(spec, jobCount);
+    });
+  }, [userSpecs, userJobs]);
 
   const handleCreateSpec = async (params: CreateJobSpecParams) => {
-    setIsSubmitting(true);
-    // TODO: Call contract to create spec
-    console.log("Creating spec:", params);
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    setIsSubmitting(false);
-    setIsCreateSpecModalOpen(false);
+    createJobSpec({
+      mainDomain: params.mainDomain,
+      notarizeUrl: params.notarizeUrl,
+      description: params.description,
+      promptInstructions: params.promptInstructions,
+      outputSchema: params.outputSchema || "",
+      inputSchema: params.inputSchema || "",
+      validationRules: params.validationRules || "",
+    });
   };
 
   const handleJobClick = (jobId: string) => {
-    // TODO: Navigate to job details or expand inline
+    // TODO: Navigate to job details
     console.log("Job clicked:", jobId);
   };
 
   const handleSpecClick = (specId: string) => {
     router.push(`/requestor/jobSpecs/${specId}/jobs`);
   };
+
+  const isLoading = isLoadingSpecs || isLoadingJobs;
+  const isSubmitting = isCreatingSpec || isConfirmingSpec;
+
+  // Show connect wallet message if not connected
+  if (!isConnected) {
+    return (
+      <DashboardLayout role="requestor">
+        <div className="flex flex-col items-center justify-center py-20">
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
+            Connect Your Wallet
+          </h2>
+          <p className="text-[var(--text-secondary)] text-center max-w-md">
+            Connect your wallet to view and manage your jobs and job specs.
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="requestor">
@@ -123,13 +148,19 @@ export default function RequestorDashboard() {
             </h2>
           </div>
           <div className="p-2">
-            <JobsTable
-              jobs={mockJobs}
-              onRowClick={handleJobClick}
-              emptyMessage="You haven't created any jobs yet"
-            />
+            {isLoading ? (
+              <div className="py-8 text-center text-[var(--text-muted)]">
+                Loading jobs...
+              </div>
+            ) : (
+              <JobsTable
+                jobs={formattedJobs}
+                onRowClick={handleJobClick}
+                emptyMessage="You haven't created any jobs yet"
+              />
+            )}
           </div>
-          {mockJobs.length > 0 && (
+          {formattedJobs.length > 0 && (
             <div className="px-6 py-3 border-t border-[var(--border)]">
               <button className="text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors">
                 View All Jobs →
@@ -149,13 +180,19 @@ export default function RequestorDashboard() {
             </Button>
           </div>
           <div className="p-2">
-            <JobSpecsTable
-              specs={mockSpecs}
-              onRowClick={handleSpecClick}
-              emptyMessage="You haven't created any job specs yet"
-            />
+            {isLoading ? (
+              <div className="py-8 text-center text-[var(--text-muted)]">
+                Loading specs...
+              </div>
+            ) : (
+              <JobSpecsTable
+                specs={formattedSpecs}
+                onRowClick={handleSpecClick}
+                emptyMessage="You haven't created any job specs yet"
+              />
+            )}
           </div>
-          {mockSpecs.length > 0 && (
+          {formattedSpecs.length > 0 && (
             <div className="px-6 py-3 border-t border-[var(--border)]">
               <button
                 onClick={() => router.push("/requestor/jobSpecs")}

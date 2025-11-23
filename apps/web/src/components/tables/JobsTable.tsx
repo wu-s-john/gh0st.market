@@ -11,6 +11,7 @@ export interface Job {
   bounty: string;
   token: string;
   createdAt: number;
+  requester: string;
 }
 
 interface JobsTableProps {
@@ -58,6 +59,9 @@ export function JobsTable({ jobs, onRowClick, emptyMessage = "No jobs found" }: 
               Spec
             </th>
             <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
+              Requester
+            </th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
               Status
             </th>
             <th className="text-right py-3 px-4 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
@@ -84,6 +88,11 @@ export function JobsTable({ jobs, onRowClick, emptyMessage = "No jobs found" }: 
               <td className="py-3 px-4">
                 <span className="text-sm text-[var(--text-secondary)]">
                   {job.targetDomain}
+                </span>
+              </td>
+              <td className="py-3 px-4">
+                <span className="font-[family-name:var(--font-jetbrains-mono)] text-sm text-[var(--text-muted)]">
+                  {truncateAddress(job.requester)}
                 </span>
               </td>
               <td className="py-3 px-4">

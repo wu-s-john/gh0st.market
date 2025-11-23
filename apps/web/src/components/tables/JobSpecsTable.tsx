@@ -7,6 +7,8 @@ export interface JobSpec {
   notarizeUrl: string;
   description: string;
   promptInstructions: string;
+  inputSchema: string;
+  outputSchema: string;
   creator: string;
   createdAt: number;
   active: boolean;
