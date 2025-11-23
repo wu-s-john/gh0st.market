@@ -77,3 +77,10 @@ eth-fmt:
 # Start frontend dev server (Next.js)
 watch-frontend-dev:
     cd apps/web && pnpm dev
+
+# Generate wagmi TypeScript bindings from Solidity contracts
+generate-bindings:
+    cd apps/web && pnpm generate
+
+# Build contracts and regenerate TypeScript bindings
+eth-build-all: eth-build generate-bindings
